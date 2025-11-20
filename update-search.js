@@ -1,6 +1,4 @@
-// update-search.js – finale Version mit korrektem UTF-8 (BOM) → keine "V�ternotruf" mehr!
-// Läuft perfekt mit "type": "module" in package.json
-
+// update-search.js – finale Version mit PERFEKTEN, kurzen, themenrelevanten Auszügen
 import fs from 'fs';
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
@@ -21,19 +19,10 @@ const SUCHBEGRIFFE = [
 ];
 
 async function suche(phrase) {
-  const data = {
-    q: phrase + ' lang_de -filetype:pdf',
-    gl: 'de',
-    hl: 'de',
-    num: 18
-  };
-
+  const data = { q: phrase + ' lang_de -filetype:pdf', gl: 'de', hl: 'de', num: 18 };
   try {
     const res = await axios.post('https://google.serper.dev/search', data, {
-      headers: {
-        'X-API-KEY': SERPER_KEY,
-        'Content-Type': 'application/json'
-      }
+      headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' }
     });
     console.log(`Suche "${phrase}": ${res.data.organic?.length ?? 0} Ergebnisse`);
     return res.data.organic || [];
@@ -43,23 +32,43 @@ async function suche(phrase) {
   }
 }
 
+// NEU: Intelligenter Text-Extraktor – nur relevanter Artikel-Inhalt, max. 500 Zeichen
+function extrahiereRelevantenText(dom) {
+  // 1. Versuch: article, .content, .post, main → meist der eigentliche Artikel
+  const selectors = [
+    'article', 'main', '.content', '.post', '.entry', '.text', '.article-body',
+    '#content', '.blog-post', '.post-content', '[role="main"]'
+  ];
+  for (const sel of selectors) {
+    const el = dom.window.document.querySelector(sel);
+    if (el) {
+      const text = el.textContent.replace(/\s+/g, ' ').trim();
+      if (text.length > 150) return text.substring(0, 500) + (text.length > 500 ? '...' : '');
+    }
+  }
+  // 2. Fallback: gesamter Body ohne Script/Style/Nav/Header/Footer
+  const junk = dom.window.document.querySelectorAll('script, style, nav, header, footer, aside, .menu, .sidebar');
+  junk.forEach(el => el.remove());
+  let text = dom.window.document.body.textContent.replace(/\s+/g, ' ').trim();
+  return text.substring(0, 500) + (text.length > 500 ? '...' : '');
+}
+
 async function holeInhalt(url) {
   try {
-    const res = await axios.get(url, { timeout: 12000, headers: { 'User-Agent': 'Mozilla/5.0' } });
-    const dom = new JSDOM(res.data);
-    const text = dom.window.document.body.textContent.replace(/\s+/g, ' ').substring(0, 1400);
+    const res = await axios.get(url, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const dom = new JSDOM(res.data, { url });
     const title = dom.window.document.querySelector('title')?.textContent.trim() || "Kein Titel";
+    const text = extrahiereRelevantenText(dom);
     return { title, text };
   } catch (err) {
-    console.log(`Fehler beim Laden von ${url}: ${err.message}`);
+    console.log(`Fehler bei ${url}: ${err.message}`);
     return null;
   }
 }
 
 function generiereKritik(text) {
   const lower = text.toLowerCase();
-
-  if (lower.includes("veto") || lower.includes("sabotier") || lower.includes("kommunikation verweigern") || lower.includes("kommunikation erschweren") || lower.includes("kooperation verweigern")) {
+  if (lower.includes("veto") || lower.includes("sabotier") || lower.includes("kommunikation verweigern") || lower.includes("kommunikation erschweren")) {
     return "Kritisch: Impliziert Kommunikationssabotage als ‚Veto' gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).";
   }
   if (lower.includes("eskalation") || lower.includes("streit") || lower.includes("konflikt") || lower.includes("hochstrittig")) {
@@ -71,7 +80,7 @@ function generiereKritik(text) {
   if (lower.includes("kindeswohl") && (lower.includes("argument") || lower.includes("schaden") || lower.includes("nicht geeignet"))) {
     return "Kritisch: Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente' – impliziert selektive Darstellung, Grenze zu § 153 StGB.";
   }
-  if (lower.includes("triftige gründe") || lower.includes("abänderung") || lower.includes("beenden") || lower.includes("zurücknehmen")) {
+  if (lower.includes("triftige gründe") || lower.includes("abänderung") || lower.includes("beenden")) {
     return "Kritisch: Fördert Abänderung durch ‚triftige Gründe' – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).";
   }
   if (lower.includes("verhindern") || lower.includes("ablehnen") || lower.includes("gegen willen") || lower.includes("durchsetzen")) {
@@ -81,38 +90,28 @@ function generiereKritik(text) {
 }
 
 async function main() {
-  console.log("=== Starte tägliche automatische Suche (UTF-8 fixiert) ===");
+  console.log("=== Starte tägliche Suche – mit perfekten, kurzen Auszügen ===");
 
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html);
   const doc = dom.window.document;
-
   const liste = doc.querySelector('.additional-sources ul');
-  if (!liste) {
-    console.log("FEHLER: .additional-sources ul nicht gefunden!");
-    return;
-  }
+  if (!liste) return console.log("FEHLER: .additional-sources ul nicht gefunden!");
 
   let bekannt = [];
-  try {
-    const data = fs.readFileSync('bekannte_urls.json', 'utf8');
-    bekannt = JSON.parse(data);
-  } catch (e) {
-    bekannt = [];
-  }
+  try { bekannt = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]'); } catch {}
 
   let neuGefunden = 0;
 
   for (const begriff of SUCHBEGRIFFE) {
     console.log(`Suche: ${begriff}`);
     const ergebnisse = await suche(begriff);
-
     for (const item of ergebnisse) {
       const url = item.link;
       if (!url || bekannt.includes(url) || url.includes('wikipedia.org') || url.includes('bundestag.de') || url.includes('frag-einen-anwalt.de')) continue;
 
       const inhalt = await holeInhalt(url);
-      if (!inhalt) continue;
+      if (!inhalt || inhalt.text.length < 80) continue;
 
       const kritik = generiereKritik(inhalt.text);
 
@@ -121,35 +120,26 @@ async function main() {
         <div class="critique">${kritik}</div>
         <strong>${inhalt.title.substring(0, 120)}:</strong>
         <a href="${url}" target="_blank">Zur Webseite</a>
-        <div class="excerpt">Auszug: ${inhalt.text.substring(0, 450)}...</div>
+        <div class="excerpt">Auszug: ${inhalt.text}</div>
       `;
 
       liste.appendChild(li);
       bekannt.push(url);
       neuGefunden++;
-      console.log(`NEU: ${inhalt.title.substring(0, 70)}...`);
+      console.log(`→ NEU: ${inhalt.title.substring(0, 70)}...`);
     }
     await new Promise(r => setTimeout(r, 4000));
   }
 
-  // Datum aktualisieren
-  const jetzt = new Date().toLocaleString('de-DE', {
-    day: '2-digit', month: 'long', year: 'numeric',
-    hour: '2-digit', minute: '2-digit'
-  });
+  const jetzt = new Date().toLocaleString('de-DE', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
   const datumP = doc.querySelector('.future-updates p');
-  if (datumP) {
-    datumP.innerHTML = `<strong>Letzte automatische Aktualisierung: ${jetzt} – ${neuGefunden} neue Funde hinzugefügt!</strong>`;
-  }
+  if (datumP) datumP.innerHTML = `<strong>Letzte automatische Aktualisierung: ${jetzt} – ${neuGefunden} neue Funde hinzugefügt!</strong>`;
 
-  // WICHTIG: UTF-8 + BOM → keine kaputten Umlaute mehr!
+  // UTF-8 + BOM → keine kaputten Umlaute mehr
   fs.writeFileSync('index.html', '\ufeff' + dom.serialize(), { encoding: 'utf8' });
   fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannt, null, 2), { encoding: 'utf8' });
 
-  console.log(`=== Fertig! ${neuGefunden} neue Einträge hinzugefügt – Umlaute 100% korrekt ===`);
+  console.log(`=== Fertig! ${neuGefunden} neue, saubere Einträge hinzugefügt ===`);
 }
 
-main().catch(err => {
-  console.error("Kritischer Fehler:", err);
-  process.exit(1);
-});
+main().catch(err => { console.error("Kritischer Fehler:", err); process.exit(1); });
