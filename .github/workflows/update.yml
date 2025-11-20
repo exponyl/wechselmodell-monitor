@@ -30,5 +30,9 @@ jobs:
           git config user.name "Auto-Update Bot"
           git config user.email "bot@github.com"
           git add index.html bekannte_urls.json
-          git commit -m "Auto-Update: $(date '+%d.%m.%Y %H:%M') – $(git diff --name-only HEAD~1 | wc -l) Änderungen" || exit 0
-          git push
+          if git diff --staged --quiet; then
+            echo "Keine Änderungen – kein Commit."
+          else
+            git commit -m "Auto-Update: $(date '+%d.%m.%Y %H:%M') – $(git diff --name-only HEAD~1 | wc -l) Änderungen"
+            git push
+          fi
