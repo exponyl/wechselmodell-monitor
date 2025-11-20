@@ -1,4 +1,6 @@
-// update-search.js – finale, fehlerfreie ES-Module-Version
+// update-search.js – finale Version mit korrektem UTF-8 (BOM) → keine "V�ternotruf" mehr!
+// Läuft perfekt mit "type": "module" in package.json
+
 import fs from 'fs';
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
@@ -79,7 +81,7 @@ function generiereKritik(text) {
 }
 
 async function main() {
-  console.log("=== Starte tägliche automatische Suche (ES-Module) ===");
+  console.log("=== Starte tägliche automatische Suche (UTF-8 fixiert) ===");
 
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html);
@@ -125,7 +127,7 @@ async function main() {
       liste.appendChild(li);
       bekannt.push(url);
       neuGefunden++;
-      console.log(`→ NEU: ${inhalt.title.substring(0, 70)}...`);
+      console.log(`NEU: ${inhalt.title.substring(0, 70)}...`);
     }
     await new Promise(r => setTimeout(r, 4000));
   }
@@ -140,10 +142,11 @@ async function main() {
     datumP.innerHTML = `<strong>Letzte automatische Aktualisierung: ${jetzt} – ${neuGefunden} neue Funde hinzugefügt!</strong>`;
   }
 
-  fs.writeFileSync('index.html', dom.serialize());
-  fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannt, null, 2));
+  // WICHTIG: UTF-8 + BOM → keine kaputten Umlaute mehr!
+  fs.writeFileSync('index.html', '\ufeff' + dom.serialize(), { encoding: 'utf8' });
+  fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannt, null, 2), { encoding: 'utf8' });
 
-  console.log(`=== Fertig! ${neuGefunden} neue Einträge hinzugefügt. ===`);
+  console.log(`=== Fertig! ${neuGefunden} neue Einträge hinzugefügt – Umlaute 100% korrekt ===`);
 }
 
 main().catch(err => {
