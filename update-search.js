@@ -1,4 +1,4 @@
-// update-search.js – ES-Module-Version (läuft mit "type": "module")
+// update-search.js – finale, fehlerfreie ES-Module-Version
 import fs from 'fs';
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
@@ -56,6 +56,7 @@ async function holeInhalt(url) {
 
 function generiereKritik(text) {
   const lower = text.toLowerCase();
+
   if (lower.includes("veto") || lower.includes("sabotier") || lower.includes("kommunikation verweigern") || lower.includes("kommunikation erschweren") || lower.includes("kooperation verweigern")) {
     return "Kritisch: Impliziert Kommunikationssabotage als ‚Veto' gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).";
   }
@@ -68,17 +69,17 @@ function generiereKritik(text) {
   if (lower.includes("kindeswohl") && (lower.includes("argument") || lower.includes("schaden") || lower.includes("nicht geeignet"))) {
     return "Kritisch: Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente' – impliziert selektive Darstellung, Grenze zu § 153 StGB.";
   }
-  if (lower.includes("triftige gründe") || lower.includes("abänderung") lower.includes("beenden")) {
+  if (lower.includes("triftige gründe") || lower.includes("abänderung") || lower.includes("beenden") || lower.includes("zurücknehmen")) {
     return "Kritisch: Fördert Abänderung durch ‚triftige Gründe' – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).";
   }
-  if (lower.includes("verhindern") lower.includes("ablehnen") lower.includes("gegen willen") lower.includes("durchsetzen")) {
+  if (lower.includes("verhindern") || lower.includes("ablehnen") || lower.includes("gegen willen") || lower.includes("durchsetzen")) {
     return "Kritisch: Explizite ‚Auswege' zur Verhinderung durch Streit und Distanz – direkte Anleitung zu Eskalation, strafbar als Beihilfe (§ 27 StGB).";
   }
   return "Kritisch: Indirekte Strategie gegen das Wechselmodell erkennbar.";
 }
 
 async function main() {
-  console.log("Starte automatische Suche – ES-Module-Version");
+  console.log("=== Starte tägliche automatische Suche (ES-Module) ===");
 
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html);
@@ -92,16 +93,21 @@ async function main() {
 
   let bekannt = [];
   try {
-    bekannt = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]');
-  } catch { }
+    const data = fs.readFileSync('bekannte_urls.json', 'utf8');
+    bekannt = JSON.parse(data);
+  } catch (e) {
+    bekannt = [];
+  }
 
   let neuGefunden = 0;
 
   for (const begriff of SUCHBEGRIFFE) {
+    console.log(`Suche: ${begriff}`);
     const ergebnisse = await suche(begriff);
+
     for (const item of ergebnisse) {
       const url = item.link;
-      if (!url bekannt.includes(url) url.includes('wikipedia.org') url.includes('bundestag.de')) continue;
+      if (!url || bekannt.includes(url) || url.includes('wikipedia.org') || url.includes('bundestag.de') || url.includes('frag-einen-anwalt.de')) continue;
 
       const inhalt = await holeInhalt(url);
       if (!inhalt) continue;
@@ -119,20 +125,25 @@ async function main() {
       liste.appendChild(li);
       bekannt.push(url);
       neuGefunden++;
-      console.log(`NEU: ${inhalt.title.substring(0, 70)}...`);
+      console.log(`→ NEU: ${inhalt.title.substring(0, 70)}...`);
     }
     await new Promise(r => setTimeout(r, 4000));
   }
 
   // Datum aktualisieren
-  const jetzt = new Date().toLocaleString('de-DE', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const datumP = doc.querySelector('.future-updates p strong') ?.parentElement;
-  if (datumP) datumP.innerHTML = `<strong>Letzte automatische Aktualisierung: ${jetzt} – ${neuGefunden} neue Funde hinzugefügt!</strong>`;
+  const jetzt = new Date().toLocaleString('de-DE', {
+    day: '2-digit', month: 'long', year: 'numeric',
+    hour: '2-digit', minute: '2-digit'
+  });
+  const datumP = doc.querySelector('.future-updates p');
+  if (datumP) {
+    datumP.innerHTML = `<strong>Letzte automatische Aktualisierung: ${jetzt} – ${neuGefunden} neue Funde hinzugefügt!</strong>`;
+  }
 
   fs.writeFileSync('index.html', dom.serialize());
   fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannt, null, 2));
 
-  console.log(`Fertig! ${neuGefunden} neue Einträge hinzugefügt.`);
+  console.log(`=== Fertig! ${neuGefunden} neue Einträge hinzugefügt. ===`);
 }
 
 main().catch(err => {
