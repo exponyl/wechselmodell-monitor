@@ -31,6 +31,12 @@ jobs:
           SERPER_KEY: ${{ secrets.SERPER_KEY }}
         run: node update-search.js
 
+      # ← HIER NUR DIESE ZWEI ZEILEN NEU HINZUGEFÜGT →
+      - name: Erweiterte Suche starten (Wayback, Urteile, Artikel)
+        env:
+          SERPER_KEY: ${{ secrets.SERPER_KEY }}
+        run: node extra-search.js
+
       - name: Änderungen committen & pushen (nur wenn was geändert wurde)
         run: |
           git config user.name "Auto-Update Bot"
