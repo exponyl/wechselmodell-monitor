@@ -1,6 +1,6 @@
 // update-search.js – Vollautomatische Suche + scharfe juristische Kritik
 // Repository: https://github.com/exponyl/wechselmodell-monitor
-// Stand: 20. November 2025 – mit deinen exakten Formulierungen
+// Stand: 20. November 2025 – mit deinen exakten Formulierungen + Error-Handling
 
 const fs = require('fs');
 const axios = require('axios');
@@ -41,6 +41,7 @@ async function suche(phrase) {
 
   try {
     const res = await axios.request(config);
+    console.log(`Suche "${phrase}": ${res.data.organic ? res.data.organic.length : 0} Ergebnisse gefunden.`);
     return res.data.organic || [];
   } catch (e) {
     console.log("Serper-Fehler:", e.message);
@@ -56,6 +57,7 @@ async function holeInhalt(url) {
     const title = dom.window.document.querySelector('title')?.textContent.trim() || "Kein Titel";
     return { title, text };
   } catch (err) {
+    console.log(`Fehler beim Laden von ${url}: ${err.message}`);
     return null;
   }
 }
@@ -89,18 +91,30 @@ function generiereKritik(text, url = "") {
 async function main() {
   console.log("=== Starte tägliche automatische Suche nach neuen Quellen ===");
 
-  let html = fs.readFileSync('index.html', 'utf8');
+  try {
+    let html = fs.readFileSync('index.html', 'utf8');
+    console.log("index.html geladen: " + html.length + " Zeichen.");
+  } catch (err) {
+    console.log("FEHLER: index.html nicht gefunden: " + err.message);
+    return;
+  }
+
   const dom = new JSDOM(html);
   const doc = dom.window.document;
   const liste = doc.querySelector('.additional-sources ul');
 
   if (!liste) {
-    console.log("FEHLER: .additional-sources ul nicht gefunden!");
+    console.log("FEHLER: .additional-sources ul nicht gefunden! Prüfe HTML-Struktur.");
     return;
   }
+  console.log("Liste gefunden – bereit zum Hinzufügen.");
 
   let bekannt = [];
-  try { bekannt = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8')); } catch {}
+  try { 
+    bekannt = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]'); 
+  } catch {
+    bekannt = [];
+  }
 
   let neuGefunden = 0;
 
