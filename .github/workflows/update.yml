@@ -12,42 +12,29 @@ jobs:
       contents: write
 
     steps:
-      - name: Repository auschecken
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/checkout@v4
 
-      - name: Node.js 20 einrichten
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'npm'          # Jetzt funktioniert Caching!
+          cache: 'npm'
 
-      - name: Abhängigkeiten installieren (nur beim ersten Mal nötig)
-        run: npm ci                  # Schneller & zuverlässiger als npm install
+      - run: npm ci                     # Jetzt klappt es!
 
-      - name: Hauptsuche starten
+      - name: Hauptsuche
         env:
           SERPER_KEY: ${{ secrets.SERPER_KEY }}
         run: node update-search.js
 
-      - name: Erweiterte Suche starten
+      - name: Erweiterte Suche
         env:
           SERPER_KEY: ${{ secrets.SERPER_KEY }}
         run: node extra-search.js
 
-      - name: Änderungen committen & pushen (nur wenn nötig)
+      - name: Commit & Push (nur bei Änderungen)
         run: |
-          git config user.name "Wechselmodell-Monitor Bot"
-          git config user.email "bot@wechselmodell-monitor"
-          git add index.html bekannte_urls.json quellen-seite-*.html 2>/dev/null || true
-
-          if git diff --staged --quiet; then
-            echo "Keine Änderungen – nichts zu committen."
-            exit 0
-          fi
-
-          changed=$(git diff --cached --name-only | wc -l)
-          git commit -m "Auto-Update $(date '+%d.%m.%Y %H:%M') – ${changed} Datei(en)"
-          git push
-          echo "Erfolgreich gepusht – ${changed} Datei(en) aktualisiert."
+          git config user.name "Bot"
+          git config user.email "bot@github.com"
+          git add index.html bekannte_urls.json quellen-seite-*.html
+          git diff --staged --quiet || git commit -m "Auto-Update $(date '+%d.%m.%Y %H:%M')"
+          git push || echo "Nichts zu pushen"
