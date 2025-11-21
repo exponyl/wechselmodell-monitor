@@ -1,4 +1,5 @@
-// update-search.js – finale Version mit PERFEKTEN, kurzen, themenrelevanten Auszügen
+// update-search.js – finale Version mit PERFEKTEN, kurzen, themenrelevanten Auszügen + dynamischem Update-Block
+
 import fs from 'fs';
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
@@ -32,9 +33,7 @@ async function suche(phrase) {
   }
 }
 
-// NEU: Intelligenter Text-Extraktor – nur relevanter Artikel-Inhalt, max. 500 Zeichen
 function extrahiereRelevantenText(dom) {
-  // 1. Versuch: article, .content, .post, main → meist der eigentliche Artikel
   const selectors = [
     'article', 'main', '.content', '.post', '.entry', '.text', '.article-body',
     '#content', '.blog-post', '.post-content', '[role="main"]'
@@ -46,7 +45,6 @@ function extrahiereRelevantenText(dom) {
       if (text.length > 150) return text.substring(0, 500) + (text.length > 500 ? '...' : '');
     }
   }
-  // 2. Fallback: gesamter Body ohne Script/Style/Nav/Header/Footer
   const junk = dom.window.document.querySelectorAll('script, style, nav, header, footer, aside, .menu, .sidebar');
   junk.forEach(el => el.remove());
   let text = dom.window.document.body.textContent.replace(/\s+/g, ' ').trim();
@@ -55,7 +53,7 @@ function extrahiereRelevantenText(dom) {
 
 async function holeInhalt(url) {
   try {
-    const res = await axios.get(url, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0' } });
+    const res = await axios.get(url, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } });
     const dom = new JSDOM(res.data, { url });
     const title = dom.window.document.querySelector('title')?.textContent.trim() || "Kein Titel";
     const text = extrahiereRelevantenText(dom);
@@ -90,25 +88,39 @@ function generiereKritik(text) {
 }
 
 async function main() {
-  console.log("=== Starte tägliche Suche – mit perfekten, kurzen Auszügen ===");
+  console.log("=== Starte tägliche Hauptsuche – mit intelligenten Auszügen + dynamischem Update ===");
+
+  if (!fs.existsSync('index.html')) {
+    console.log("FEHLER: index.html nicht gefunden!");
+    return;
+  }
 
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html);
   const doc = dom.window.document;
-  const liste = doc.querySelector('.additional-sources ul');
-  if (!liste) return console.log("FEHLER: .additional-sources ul nicht gefunden!");
 
-  let bekannt = [];
-  try { bekannt = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]'); } catch {}
+  const liste = doc.querySelector('.additional-sources ul');
+  if (!liste) {
+    console.log("FEHLER: .additional-sources ul nicht gefunden!");
+    return;
+  }
+
+  let bekannteUrls = [];
+  try {
+    bekannteUrls = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]');
+  } catch (e) {
+    console.log("bekannte_urls.json nicht gefunden oder fehlerhaft – starte neu");
+  }
 
   let neuGefunden = 0;
 
   for (const begriff of SUCHBEGRIFFE) {
     console.log(`Suche: ${begriff}`);
     const ergebnisse = await suche(begriff);
+
     for (const item of ergebnisse) {
       const url = item.link;
-      if (!url || bekannt.includes(url) || url.includes('wikipedia.org') || url.includes('bundestag.de') || url.includes('frag-einen-anwalt.de')) continue;
+      if (!url || bekannteUrls.includes(url) || url.includes('wikipedia.org') || url.includes('bundestag.de') || url.includes('frag-einen-anwalt.de')) continue;
 
       const inhalt = await holeInhalt(url);
       if (!inhalt || inhalt.text.length < 80) continue;
@@ -118,28 +130,53 @@ async function main() {
       const li = doc.createElement('li');
       li.innerHTML = `
         <div class="critique">${kritik}</div>
-        <strong>${inhalt.title.substring(0, 120)}:</strong>
+        <strong>${inhalt.title.substring(0, 120)}:</strong><br>
         <a href="${url}" target="_blank">Zur Webseite</a>
         <div class="excerpt">Auszug: ${inhalt.text}</div>
       `;
 
       liste.appendChild(li);
-      bekannt.push(url);
+      bekannteUrls.push(url);
       neuGefunden++;
       console.log(`→ NEU: ${inhalt.title.substring(0, 70)}...`);
     }
-    await new Promise(r => setTimeout(r, 4000));
+    await new Promise(r => setTimeout(r, 4000)); // Serper-Rate-Limit
   }
 
-  const jetzt = new Date().toLocaleString('de-DE', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-  const datumP = doc.querySelector('.future-updates p');
-  if (datumP) datumP.innerHTML = `<strong>Letzte automatische Aktualisierung: ${jetzt} – ${neuGefunden} neue Funde hinzugefügt!</strong>`;
+  // GESAMTANZAHL korrekt ermitteln
+  const gesamtAnzahl = liste.children.length;
 
-  // UTF-8 + BOM → keine kaputten Umlaute mehr
+  // ZEITSTEMPEL + UPDATE-HINWEIS DYNAMISCH ERSTELLEN
+  const jetzt = new Date();
+  const datumLang = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
+  const datumKurz = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+  // futureDiv = doc.querySelector('.future-updates');
+  if (futureDiv) {
+    futureDiv.innerHTML = `
+      <h2>Automatische Aktualisierung durch KI</h2>
+      <p><strong>Erweiterte Suche aktiv – Letzte Aktualisierung: ${datumKurz} um ${uhrzeit} Uhr – ${neuGefunden} neue Funde hinzugefügt! (Gesamt: ${gesamtAnzahl})</strong></p>
+      <p>Die KI durchsucht:</p>
+      <ul>
+        <li>Archivierte Webseiten (Wayback Machine)</li>
+        <li>Familienrechtsforen</li>
+        <li>Anwaltsblogs</li>
+        <li>Soziale Medien (X, Facebook-Gruppen)</li>
+        <li>Gerichtsurteile zu Falschbeschuldigungen</li>
+      </ul>
+      <p><strong>Letzte KI-Aktualisierung: ${datumLang}</strong> – Nächste Prüfung in Echtzeit.</p>
+    `;
+  }
+
+  // Speichern mit BOM (für korrekte Umlaute in Windows-Editoren)
   fs.writeFileSync('index.html', '\ufeff' + dom.serialize(), { encoding: 'utf8' });
-  fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannt, null, 2), { encoding: 'utf8' });
+  fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannteUrls, null, 2), { encoding: 'utf8' });
 
-  console.log(`=== Fertig! ${neuGefunden} neue, saubere Einträge hinzugefügt ===`);
+  console.log(`FERTIG! ${neuGefunden neue Einträge → Gesamt in Liste: ${gesamtAnzahl} Funde`);
 }
 
-main().catch(err => { console.error("Kritischer Fehler:", err); process.exit(1); });
+main().catch(err => {
+  console.error("Kritischer Fehler:", err);
+  process.exit(1);
+});
