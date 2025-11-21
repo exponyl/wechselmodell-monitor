@@ -9,11 +9,11 @@
     <li>Verbot der Behinderung des Umgangsrechts (§ 1684 Abs. 4 BGB)</li>
     <li>Kindeswohl als oberste Richtschnur (§ 1666 BGB)</li>
     <li>Strafbarkeit falscher Verdächtigungen (§ 164 StGB), Verleumdung (§ 187 StGB), Betrug (§ 263 StGB) und Kindesentführung (§ 235 StGB)</li>
-    <li><strong>BGH-Rechtsprechung zur Durchsetzbarkeit des Wechselmodells bei vorhandener Kommunikationsfähigkeit (u. a. Beschluss vom 01.02.2017 – XII ZB 601/15)</strong> [](grok_render_citation_card_json={"cardIds":["9d9988","06e819","b95277"]})</li>
+    <li><strong>BGH-Rechtsprechung zur Durchsetzbarkeit des Wechselmodells bei vorhandener Kommunikationsfähigkeit (u. a. Beschluss vom 01.02.2017 – XII ZB 601/15)</strong></li>
 </ul>
 
 <h2>BGH-Urteile zum Wechselmodell: Rechtliche Grundlage und Durchsetzbarkeit</h2>
-<p>Der Bundesgerichtshof (BGH) hat in mehreren wegweisenden Entscheidungen klargestellt, dass das paritätische Wechselmodell – also die etwa hälftige Betreuung durch beide Eltern – grundsätzlich durchsetzbar ist, auch gegen den Willen eines Elternteils. Dies gilt, wenn die geteilte Betreuung dem Kindeswohl am besten entspricht und Voraussetzungen wie räumliche Nähe der Haushalte, geeignete Rahmenbedingungen sowie Kooperations- und Kommunikationsfähigkeit der Eltern erfüllt sind. [](grok_render_citation_card_json={"cardIds":["6866d3","34e212","615837"]}) Das Gesetz schließt keine Beschränkung des Umgangsrechts aus, die zu hälftigen Betreuungsanteilen führen würde; es orientiert sich zwar am Residenzmodell, legt aber kein Leitbild fest, das andere Modelle ausschließt. [](grok_render_citation_card_json={"cardIds":["b21a31","bc3108"]})</p>
+<p>Der Bundesgerichtshof (BGH) hat in mehreren wegweisenden Entscheidungen klargestellt, dass das paritätische Wechselmodell – also die etwa hälftige Betreuung durch beide Eltern – grundsätzlich durchsetzbar ist, auch gegen den Willen eines Elternteils. Dies gilt, wenn die geteilte Betreuung dem Kindeswohl am besten entspricht und Voraussetzungen wie räumliche Nähe der Haushalte, geeignete Rahmenbedingungen sowie Kooperations- und Kommunikationsfähigkeit der Eltern erfüllt sind. Das Gesetz schließt keine Beschränkung des Umgangsrechts aus, die zu hälftigen Betreuungsanteilen führen würde; es orientiert sich zwar am Residenzmodell, legt aber kein Leitbild fest, das andere Modelle ausschließt.</p>
 
 <p><strong>Wichtige BGH-Entscheidungen im Überblick:</strong></p>
 <table style="border-collapse: collapse; width: 100%; border: 1px solid #ddd;">
@@ -27,33 +27,33 @@
     <tbody>
         <tr>
             <td style="border: 1px solid #ddd; padding: 8px;">01.02.2017 – XII ZB 601/15</td>
-            <td style="border: 1px solid #ddd; padding: 8px;">Familiengericht kann Wechselmodell als Umgangsregelung anordnen, auch gegen Willen eines Elternteils, wenn Kindeswohl am besten gewahrt. [](grok_render_citation_card_json={"cardIds":["6bfdf9","b9cfc2"]})</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">Familiengericht kann Wechselmodell als Umgangsregelung anordnen, auch gegen Willen eines Elternteils, wenn Kindeswohl am besten gewahrt.</td>
             <td style="border: 1px solid #ddd; padding: 8px;">Grundlage für Durchsetzbarkeit; Eskalationsstrategien in Beratungen unterlaufen dies und können als Behinderung gelten (§ 1684 BGB).</td>
         </tr>
         <tr>
             <td style="border: 1px solid #ddd; padding: 8px;">11.01.2017 – XII ZB 565/15</td>
-            <td style="border: 1px solid #ddd; padding: 8px;">Bei Wechselmodell bleibt Kindesunterhalt trotz gleicher Betreuung fällig, wenn Einkommen unterschiedlich. [](grok_render_citation_card_json={"cardIds":["465275"]})</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">Bei Wechselmodell bleibt Kindesunterhalt trotz gleicher Betreuung fällig, wenn Einkommen unterschiedlich; beide Eltern haften für Barunterhalt.</td>
             <td style="border: 1px solid #ddd; padding: 8px;">Unterstreicht finanzielle Gleichberechtigung; falsche Vorwürfe zur Unterhaltsumgehung sind strafbar (§ 263 StGB).</td>
         </tr>
         <tr>
             <td style="border: 1px solid #ddd; padding: 8px;">27.11.2019 – XII ZB 512/18</td>
-            <td style="border: 1px solid #ddd; padding: 8px;">Wechselmodell kann bestehende Sorgerechtsregelungen überlagern; Kooperationsfähigkeit entscheidend. [](grok_render_citation_card_json={"cardIds":["24920c","b0da7c"]})</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">Wechselmodell kann bestehende Sorgerechtsregelungen überlagern; Kooperationsfähigkeit entscheidend.</td>
             <td style="border: 1px solid #ddd; padding: 8px;">Konfliktverhinderung priorisiert; dokumentierte Eskalationstaktiken widersprechen dem Kindeswohl (§ 1666 BGB).</td>
         </tr>
         <tr>
             <td style="border: 1px solid #ddd; padding: 8px;">10.04.2024 – XII ZB 459/23</td>
-            <td style="border: 1px solid #ddd; padding: 8px;">Vereinfachte Geltendmachung von Unterhaltsansprüchen beim Wechselmodell; beide Eltern vertretungsberechtigt. [](grok_render_citation_card_json={"cardIds":["28911c","87e847"]})</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">Vereinfachte Geltendmachung von Unterhaltsansprüchen beim Wechselmodell; beide Eltern vertretungsberechtigt, keine Ergänzungspfleger notwendig.</td>
             <td style="border: 1px solid #ddd; padding: 8px;">Prozessökonomische Regelung; schützt vor Missbrauch durch einseitige Vertretung.</td>
         </tr>
         <tr>
             <td style="border: 1px solid #ddd; padding: 8px;">19.01.2022 – XII ZA 12/21</td>
-            <td style="border: 1px solid #ddd; padding: 8px;">Abänderung des Wechselmodells im Umgangsverfahren möglich; zweistufige Kindeswohlprüfung. [](grok_render_citation_card_json={"cardIds":["2779ca"]})</td>
+            <td style="border: 1px solid #ddd; padding: 8px;">Abänderung des Wechselmodells im Umgangsverfahren möglich; zweistufige Kindeswohlprüfung.</td>
             <td style="border: 1px solid #ddd; padding: 8px;">Flexibilität bei Veränderungen; Beratungen, die Kooperation sabotieren, können zu Sorgerechtsentzug führen.</td>
         </tr>
     </tbody>
 </table>
 
-<p>Die BGH-Rechtsprechung betont einhellig das Kindeswohl als Maßstab und fordert eine Anhörung des Kindes (je älter, desto relevanter). [](grok_render_citation_card_json={"cardIds":["82ba31"]}) Konflikthöhe schließt das Modell aus, unterstreicht aber die Notwendigkeit kooperativer Elternschaft – im Gegensatz zu den archivierten Strategien, die Konflikte schüren. [](grok_render_citation_card_json={"cardIds":["cfa275"]})</p>
+<p>Die BGH-Rechtsprechung betont einhellig das Kindeswohl als Maßstab und fordert eine Anhörung des Kindes (je älter, desto relevanter). Konflikthöhe schließt das Modell aus, unterstreicht aber die Notwendigkeit kooperativer Elternschaft – im Gegensatz zu den archivierten Strategien, die Konflikte schüren.</p>
 
 <h2>Zweck des Projekts</h2>
 <ul>
