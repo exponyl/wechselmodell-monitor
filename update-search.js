@@ -1,4 +1,4 @@
-// update-search.js – finale Version mit PERFEKTEN, kurzen, themenrelevanten Auszügen + dynamischem Update-Block
+// update-search.js – finale Version mit PERFEKTEN Auszügen + dynamischem Update-Block
 
 import fs from 'fs';
 import axios from 'axios';
@@ -66,29 +66,29 @@ async function holeInhalt(url) {
 
 function generiereKritik(text) {
   const lower = text.toLowerCase();
-  if (lower.includes("veto") || lower.includes("sabotier") || lower.includes("kommunikation verweigern") || lower.includes("kommunikation erschweren")) {
-    return "Kritisch: Impliziert Kommunikationssabotage als ‚Veto' gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).";
+  if (lower.includes("veto") || lower.includes("sabotier") || lower.includes("kommunikation verweigern")) {
+    return "Kritisch: Kommunikationssabotage als ‚Veto‘ gegen Wechselmodell – Grenze zu § 235 StGB.";
   }
-  if (lower.includes("eskalation") || lower.includes("streit") || lower.includes("konflikt") || lower.includes("hochstrittig")) {
-    return "Kritisch: Erwähnt taktische Eskalation durch Anwälte – Risiko von Beihilfe zu Prozessbetrug (§ 263 StGB).";
+  if (lower.includes("eskalation") || lower.includes("streit") || lower.includes("konflikt")) {
+    return "Kritisch: Taktische Eskalation durch Anwälte – Risiko von Beihilfe zu Prozessbetrug (§ 263 StGB).";
   }
-  if ((lower.includes("gutachten") || lower.includes("gutachter")) && (lower.includes("ablehnen") || lower.includes("mangelhaft") || lower.includes("beeinflussen"))) {
-    return "Kritisch: Hohe Hürden und mangelhafte Gutachten als Ablehnungs-Tür – impliziert Manipulation von Gutachten (§ 153 StGB).";
+  if ((lower.includes("gutachten") || lower.includes("gutachter")) && lower.includes("beeinflussen")) {
+    return "Kritisch: Gutachtenmanipulation – § 153 StGB.";
   }
-  if (lower.includes("kindeswohl") && (lower.includes("argument") || lower.includes("schaden") || lower.includes("nicht geeignet"))) {
-    return "Kritisch: Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente' – impliziert selektive Darstellung, Grenze zu § 153 StGB.";
+  if (lower.includes("kindeswohl") && lower.includes("argument")) {
+    return "Kritisch: Selektive Kindeswohl-Argumente – Grenze zu § 153 StGB.";
   }
-  if (lower.includes("triftige gründe") || lower.includes("abänderung") || lower.includes("beenden")) {
-    return "Kritisch: Fördert Abänderung durch ‚triftige Gründe' – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).";
+  if (lower.includes("triftige gründe") || lower.includes("abänderung")) {
+    return "Kritisch: Konfliktinszenierung zur Abänderung – verletzt Kindeswohl (§ 1666 BGB).";
   }
-  if (lower.includes("verhindern") || lower.includes("ablehnen") || lower.includes("gegen willen") || lower.includes("durchsetzen")) {
-    return "Kritisch: Explizite ‚Auswege' zur Verhinderung durch Streit und Distanz – direkte Anleitung zu Eskalation, strafbar als Beihilfe (§ 27 StGB).";
+  if (lower.includes("verhindern") || lower.includes("ablehnen") || lower.includes("durchsetzen")) {
+    return "Kritisch: Direkte Anleitung zur Verhinderung des Wechselmodells – Beihilfe (§ 27 StGB).";
   }
   return "Kritisch: Indirekte Strategie gegen das Wechselmodell erkennbar.";
 }
 
 async function main() {
-  console.log("=== Starte tägliche Hauptsuche – mit intelligenten Auszügen + dynamischem Update ===");
+  console.log("=== Starte tägliche Hauptsuche ===");
 
   if (!fs.existsSync('index.html')) {
     console.log("FEHLER: index.html nicht gefunden!");
@@ -109,7 +109,7 @@ async function main() {
   try {
     bekannteUrls = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]');
   } catch (e) {
-    console.log("bekannte_urls.json nicht gefunden oder fehlerhaft – starte neu");
+    console.log("bekannte_urls.json nicht gefunden – starte neu");
   }
 
   let neuGefunden = 0;
@@ -140,40 +140,43 @@ async function main() {
       neuGefunden++;
       console.log(`→ NEU: ${inhalt.title.substring(0, 70)}...`);
     }
-    await new Promise(r => setTimeout(r, 4000)); // Serper-Rate-Limit
+    await new Promise(r => setTimeout(r, 4000));
   }
 
-  // GESAMTANZAHL korrekt ermitteln
+  // ──────── DYNAMISCHER FUTURE-UPDATES BLOCK ────────
   const gesamtAnzahl = liste.children.length;
 
-  // ZEITSTEMPEL + UPDATE-HINWEIS DYNAMISCH ERSTELLEN
   const jetzt = new Date();
-  const datumLang = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
   const datumKurz = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  const datumLang = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
 
-  // futureDiv = doc.querySelector('.future-updates');
-  if (futureDiv) {
-    futureDiv.innerHTML = `
-      <h2>Automatische Aktualisierung durch KI</h2>
-      <p><strong>Erweiterte Suche aktiv – Letzte Aktualisierung: ${datumKurz} um ${uhrzeit} Uhr – ${neuGefunden} neue Funde hinzugefügt! (Gesamt: ${gesamtAnzahl})</strong></p>
-      <p>Die KI durchsucht:</p>
-      <ul>
-        <li>Archivierte Webseiten (Wayback Machine)</li>
-        <li>Familienrechtsforen</li>
-        <li>Anwaltsblogs</li>
-        <li>Soziale Medien (X, Facebook-Gruppen)</li>
-        <li>Gerichtsurteile zu Falschbeschuldigungen</li>
-      </ul>
-      <p><strong>Letzte KI-Aktualisierung: ${datumLang}</strong> – Nächste Prüfung in Echtzeit.</p>
-    `;
+  let futureDiv = doc.querySelector('.future-updates');
+  if (!futureDiv) {
+    futureDiv = doc.createElement('div');
+    futureDiv.className = 'future-updates';
+    doc.body.appendChild(futureDiv);
   }
 
-  // Speichern mit BOM (für korrekte Umlaute in Windows-Editoren)
+  futureDiv.innerHTML = `
+    <h2>Automatische Aktualisierung durch KI</h2>
+    <p><strong>Erweiterte Suche aktiv – Letzte Aktualisierung: ${datumKurz} um ${uhrzeit} Uhr – ${neuGefunden} neue Funde hinzugefügt! (Gesamt: ${gesamtAnzahl})</strong></p>
+    <p>Die KI durchsucht:</p>
+    <ul>
+      <li>Archivierte Webseiten (Wayback Machine)</li>
+      <li>Familienrechtsforen</li>
+      <li>Anwaltsblogs</li>
+      <li>Soziale Medien (X, Facebook-Gruppen)</li>
+      <li>Gerichtsurteile zu Falschbeschuldigungen</li>
+    </ul>
+    <p><strong>Letzte KI-Aktualisierung: ${datumLang}</strong> – Nächste Prüfung in Echtzeit.</p>
+  `;
+
+  // ──────── Speichern ────────
   fs.writeFileSync('index.html', '\ufeff' + dom.serialize(), { encoding: 'utf8' });
   fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannteUrls, null, 2), { encoding: 'utf8' });
 
-console.log(`FERTIG! ${neuGefunden} neue Einträge hinzugefügt → Gesamt: ${gesamtAnzahl} Funde`);
+  console.log(`FERTIG! ${neuGefunden} neue Einträge hinzugefügt → Gesamt: ${gesamtAnzahl} Funde`);
 }
 
 main().catch(err => {
