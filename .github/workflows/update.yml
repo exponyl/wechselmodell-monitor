@@ -19,7 +19,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - run: npm ci                     # Jetzt klappt es!
+      - run: npm ci
 
       - name: Hauptsuche
         env:
@@ -31,10 +31,10 @@ jobs:
           SERPER_KEY: ${{ secrets.SERPER_KEY }}
         run: node extra-search.js
 
-      - name: Commit & Push (nur bei Änderungen)
+      - name: Commit & Push
         run: |
           git config user.name "Bot"
           git config user.email "bot@github.com"
-          git add index.html bekannte_urls.json quellen-seite-*.html
+          git add index.html bekannte_urls.json quellen-seite-*.html || true
           git diff --staged --quiet || git commit -m "Auto-Update $(date '+%d.%m.%Y %H:%M')"
           git push || echo "Nichts zu pushen"
