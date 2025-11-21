@@ -12,39 +12,23 @@ jobs:
       contents: write
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Node.js 20 einrichten
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      # Kein npm ci, kein package-lock – einfach installieren, was wir brauchen
-      - name: Abhängigkeiten installieren
-        run: npm install axios jsdom
+      - run: npm install axios jsdom
 
-      # Hauptsuche
-      - name: Hauptsuche starten
+      - name: Hauptsuche
         env:
           SERPER_KEY: ${{ secrets.SERPER_KEY }}
         run: node update-search.js
 
-      # Erweiterte Suche
-      - name: Erweiterte Suche starten
-        env:
-          SERPER_KEY: ${{ secrets.SERPER_KEY }}
-        run: node extra-search.js
-
-      # Commit & Push (nur wenn sich was geändert hat)
-      - name: Commit & Push
+      - name: Commit & Push (nur wenn geändert)
         run: |
-          git config user.name "Wechselmodell-Monitor Bot"
+          git config user.name "Bot"
           git config user.email "bot@github.com"
-          git add index.html bekannte_urls.json quellen-seite-*.html 2>/dev/null || true
-          if git diff --staged --quiet; then
-            echo "Keine Änderungen – nichts zu committen."
-            exit 0
-          fi
-          git commit -m "Auto-Update $(date '+%d.%m.%Y %H:%M')"
-          git push
+          git add index.html bekannte_urls.json
+          git diff --staged --quiet || git commit -m "Auto-Update $(date '+%d.%m.%Y %H:%M')"
+          git push || echo "Nichts zu pushen"
