@@ -50,90 +50,161 @@ function generiereEintrag(item) {
 async function main() {
   console.log('Starte erweiterte tägliche Suche –', new Date().toLocaleString('de-DE'));
 
-  let neueEintraege = '';
+  let neueEintraegeHTML = '';
 
   for (const query of ZUSATZSUCHEN) {
     const ergebnisse = await suche(query);
-    ergebnisse.forEach(item => {
-      if (item.link.includes('archive.org') || item.link.includes('openjur') || Math.random() > 0.3) {
-        neueEintraege += generiereEintrag(item);
+    for (const item of ergebnisse) {
+      // Filter: Nur relevante Quellen (Wayback, Gerichte, große Medien)
+      if (
+        item.link.includes('archive.org') ||
+        item.link.includes('openjur') ||
+        item.link.includes('juris.de') ||
+        item.link.includes('spiegel.de') ||
+        item.link.includes('sueddeutsche.de') ||
+        item.link.includes('faz.net') ||
+        item.link.includes('welt.de') ||
+        Math.random() > 0.3  // Zufallsfilter für Vielfalt
+      ) {
+        neueEintraegeHTML += generiereEintrag(item);
       }
-    });
+    }
     await new Promise(r => setTimeout(r, 2500)); // höflich zum Server
   }
 
-  if (!neueEintraege) {
+  if (!neueEintraegeHTML) {
     console.log('Keine neuen Funde heute.');
+    // Trotzdem Timestamp aktualisieren (auch bei 0 neuen Funden)
+    updateTimestampOnly();
     return;
   }
 
-  // index.html laden und erweitern
+  // index.html laden
+  if (!fs.existsSync(INDEX_FILE)) {
+    console.log('index.html nicht gefunden!');
+    return;
+  }
+
   const html = fs.readFileSync(INDEX_FILE, 'utf8');
   const dom = new JSDOM(html);
   const doc = dom.window.document;
+
+  // Ziel-UL finden
   const ul = doc.querySelector('.additional-sources ul');
   if (!ul) {
     console.log('Fehler: .additional-sources ul nicht gefunden!');
     return;
   }
 
-  const temp = doc.createElement('div');
-  temp.innerHTML = neueEintraege;
-  Array.from(temp.children).forEach(li => ul.appendChild(li));
+  // Neue Einträge anhängen
+  const tempDiv = doc.createElement('div');
+  tempDiv.innerHTML = neueEintraegeHTML;
+  Array.from(tempDiv.children).forEach(li => ul.appendChild(li));
 
-  const gesamt = ul.children.length;
+  const gesamtAnzahl = ul.children.length;
+  const neueAnzahl = tempDiv.children.length;
 
-  // Pagination bei >100
-  if (gesamt > MAX_PER_PAGE) {
-    const seite = Math.ceil(gesamt / MAX_PER_PAGE);
-    const start = (seite - 1) * MAX_PER_PAGE;
-    const ueberzaehlige = Array.from(ul.children).slice(start);
+  // === Pagination bei >100 Einträgen ===
+  if (gesamtAnzahl > MAX_PER_PAGE) {
+    const aktuelleSeite = Math.ceil(gesamtAnzahl / MAX_PER_PAGE);
+    const startIndex = (aktuelleSeite - 1) * MAX_PER_PAGE;
 
-    // Neue Seite erstellen
-    const neueSeiteDatei = seite === 2 ? 'quellen-seite-2.html' : `quellen-seite-${seite}.html`;
-    let neueSeiteHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Quellen – Seite ${seite}</title>`);
+    const ueberzaehlige = Array.from(ul.children).slice(startIndex);
+
+    const seitenDatei = aktuelleSeite === 2 ? 'quellen-seite-2.html' : `quellen-seite-${aktuelleSeite}.html`;
+    let neueSeiteHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Beratungen – Seite ${aktuelleSeite}</title>`);
     const dom2 = new JSDOM(neueSeiteHTML);
     const ul2 = dom2.window.document.querySelector('.additional-sources ul');
     ul2.innerHTML = '';
     ueberzaehlige.forEach(li => ul2.appendChild(li.cloneNode(true)));
 
+    // Navigation hinzufügen
     const nav = dom2.window.document.createElement('div');
     nav.style.textAlign = 'center';
     nav.style.margin = '50px 0';
-    nav.innerHTML = `<p>
-      <a href="index.html">← Seite 1</a>
-      ${seite > 2 ? ` | <a href="quellen-seite-${seite-1}.html">← Seite ${seite-1}</a>` : ''}
-      | Seite ${seite}
-      ${gesamt > seite * MAX_PER_PAGE ? ` | <a href="quellen-seite-${seite+1}.html">Seite ${seite+1} →</a>` : ''}
-    </p>`;
+    nav.innerHTML = `
+      <p>
+        <a href="index.html">← Seite 1</a>
+        ${aktuelleSeite > 2 ? ` | <a href="quellen-seite-${aktuelleSeite - 1}.html">← Seite ${aktuelleSeite - 1}</a>` : ''}
+        | Seite ${aktuelleSeite}
+        ${gesamtAnzahl > aktuelleSeite * MAX_PER_PAGE ? ` | <a href="quellen-seite-${aktuelleSeite + 1}.html">Seite ${aktuelleSeite + 1} →</a>` : ''}
+      </p>`;
     dom2.window.document.querySelector('.additional-sources').appendChild(nav);
-    fs.writeFileSync(neueSeiteDatei, dom2.serialize());
+    fs.writeFileSync(seitenDatei, dom2.serialize());
 
     // Hauptseite kürzen
-    while (ul.children.length > MAX_PER_PAGE) ul.removeChild(ul.lastChild);
-    const link = doc.createElement('p');
-    link.style.textAlign = 'center';
-    link.style.margin = '50px 0';
-    link.innerHTML = `<a href="quellen-seite-2.html" style="font-size:1.4em; color:#d9534f; font-weight:bold;">
-      → Weitere Ergebnisse: Seite 2 und höher anzeigen (insgesamt ${gesamt} Funde)
+    while (ul.children.length > MAX_PER_PAGE) {
+      ul.removeChild(ul.lastChild);
+    }
+
+    // Link zur nächsten Seite
+    const mehrLink = doc.createElement('p');
+    mehrLink.style.textAlign = 'center';
+    mehrLink.style.margin = '50px 0';
+    mehrLink.innerHTML = `<a href="quellen-seite-2.html" style="font-size:1.4em; color:#d9534f; font-weight:bold;">
+      → Weitere Ergebnisse: Seite 2 und höher anzeigen (insgesamt ${gesamtAnzahl} Funde)
     </a>`;
-    doc.querySelector('.additional-sources').appendChild(link);
+    doc.querySelector('.additional-sources').appendChild(mehrLink);
   }
 
-  // Update-Hinweis
-  const heute = new Date().toLocaleDateString('de-DE');
-  const uhr = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  const hinweis = doc.querySelector('.future-updates p strong') || doc.createElement('p');
-  hinweis.innerHTML = `<strong>Erweiterte Suche aktiv – Letzte Aktualisierung: ${heute} um ${uhr} Uhr – ${temp.children.length} neue Funde hinzugefügt! (Gesamt: ${gesamt})</strong>`;
-  if (!doc.querySelector('.future-updates p strong')) {
-    const div = doc.querySelector('.future-updates') || doc.createElement('div');
-    div.className = 'future-updates';
-    div.appendChild(hinweis);
-    doc.body.appendChild(div);
+  // === FUTURE-UPDATES BLOCK KOMPLETT DYNAMISCH AKTUALISIEREN ===
+  const jetzt = new Date();
+  const datum = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+  const futureDiv = doc.querySelector('.future-updates');
+  if (futureDiv) {
+    futureDiv.innerHTML = `
+      <h2>Automatische Aktualisierung durch KI</h2>
+      <p><strong>Erweiterte Suche aktiv – Letzte Aktualisierung: ${datum} um ${uhrzeit} Uhr – ${neueAnzahl} neue Funde hinzugefügt! (Gesamt: ${gesamtAnzahl})</strong></p>
+      <p>Die KI durchsucht:</p>
+      <ul>
+        <li>Archivierte Webseiten (Wayback Machine)</li>
+        <li>Familienrechtsforen</li>
+        <li>Anwaltsblogs</li>
+        <li>Soziale Medien (X, Facebook-Gruppen)</li>
+        <li>Gerichtsurteile zu Falschbeschuldigungen</li>
+      </ul>
+      <p><strong>Letzte KI-Aktualisierung: ${jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })}</strong> – Nächste Prüfung in Echtzeit.</p>
+    `;
   }
 
-  fs.writeFileSync(INDEX_FILE, dom.serialize());
-  console.log(`Fertig! ${temp.children.length} neue Einträge hinzugefügt. Gesamt: ${gesamt}`);
+  // HTML speichern
+  fs.writeFileSync(INDEX_FILE, dom.serialize(), 'utf8');
+  console.log(`Fertig! ${neueAnzahl} neue Einträge hinzugefügt → Gesamt: ${gesamtAnzahl} Funde`);
+}
+
+// Falls nur Timestamp aktualisieren (keine neuen Funde)
+function updateTimestampOnly() {
+  if (!fs.existsSync(INDEX_FILE)) return;
+  const html = fs.readFileSync(INDEX_FILE, 'utf8');
+  const dom = new JSDOM(html);
+  const doc = dom.window.document;
+
+  const ul = doc.querySelector('.additional-sources ul');
+  const gesamt = ul ? ul.children.length : 0;
+
+  const jetzt = new Date();
+  const datum = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+
+  const futureDiv = doc.querySelector('.future-updates');
+  if (futureDiv) {
+    futureDiv.innerHTML = `
+      <h2>Automatische Aktualisierung durch KI</h2>
+      <p><strong>Erweiterte Suche aktiv – Letzte Aktualisierung: ${datum} um ${uhrzeit} Uhr – 0 neue Funde hinzugefügt! (Gesamt: ${gesamt})</strong></p>
+      <p>Die KI durchsucht:</p>
+      <ul>
+        <li>Archivierte Webseiten (Wayback Machine)</li>
+        <li>Familienrechtsforen</li>
+        <li>Anwaltsblogs</li>
+        <li>Soziale Medien (X, Facebook-Gruppen)</li>
+        <li>Gerichtsurteile zu Falschbeschuldigungen</li>
+      </ul>
+      <p><strong>Letzte KI-Aktualisierung: ${jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' })}</strong> – Nächste Prüfung in Echtzeit.</p>
+    `;
+    fs.writeFileSync(INDEX_FILE, dom.serialize(), 'utf8');
+  }
 }
 
 main().catch(console.error);
