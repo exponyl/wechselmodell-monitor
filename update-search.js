@@ -173,7 +173,7 @@ async function main() {
   fs.writeFileSync('index.html', '\ufeff' + dom.serialize(), { encoding: 'utf8' });
   fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannteUrls, null, 2), { encoding: 'utf8' });
 
-  console.log(`FERTIG! ${neuGefunden neue Einträge → Gesamt in Liste: ${gesamtAnzahl} Funde`);
+console.log(`FERTIG! ${neuGefunden} neue Einträge hinzugefügt → Gesamt: ${gesamtAnzahl} Funde`);
 }
 
 main().catch(err => {
