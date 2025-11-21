@@ -1,185 +1,129 @@
-// update-search.js – finale Version mit PERFEKTEN Auszügen + dynamischem Update-Block
+// extra-search.js – tägliche zusätzliche Suche (Wayback, DuckDuckGo, Urteile, Artikel)
+// Ergebnisse gehen direkt in index.html → keine extra HTML-Seiten!
+// Pagination bei >100 Einträgen in der Hauptliste
 
 import fs from 'fs';
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
 
 const SERPER_KEY = process.env.SERPER_KEY;
+const INDEX_FILE = 'index.html';
+const MAX_PER_PAGE = 100;
 
-const SUCHBEGRIFFE = [
-  "Wechselmodell verhindern",
-  "Doppelresidenz verhindern Anwalt",
-  "Wechselmodell sabotieren",
-  "Wechselmodell gegen Willen",
-  "Residenzmodell durchsetzen",
-  "Wechselmodell Kommunikation verweigern",
-  "Wechselmodell Kindeswohl Argument ablehnen",
-  "Wechselmodell Veto Elternteil",
-  "paritätisches Wechselmodell verhindern",
-  "Wechselmodell ablehnen Tipps"
+const ZUSATZSUCHEN = [
+  '"wechselmodell verhindern" OR "doppelresidenz sabotieren" OR "kindeswille vorbereiten" site:web.archive.org',
+  '"wechselmodell verhindern" OR "gutachter beeinflussen" OR "falschaussage sorgerecht" lang:de',
+  '"anwältin verurteilt" OR "prozessbetrug familienrecht" OR "kindesentzug anwalt" site:openjur.de OR site:juris.de',
+  '"anwältin skandal" OR "falschvorwürfe scheidung" OR "parental alienation anwalt" site:spiegel.de OR site:sueddeutsche.de OR site:faz.net OR site:welt.de'
 ];
 
-async function suche(phrase) {
-  const data = { q: phrase + ' lang_de -filetype:pdf', gl: 'de', hl: 'de', num: 18 };
+async function suche(query) {
   try {
-    const res = await axios.post('https://google.serper.dev/search', data, {
+    const res = await axios.post('https://google.serper.dev/search', {
+      q: query,
+      gl: 'de',
+      hl: 'de',
+      num: 10
+    }, {
       headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' }
     });
-    console.log(`Suche "${phrase}": ${res.data.organic?.length ?? 0} Ergebnisse`);
     return res.data.organic || [];
   } catch (e) {
-    console.log("Serper-Fehler:", e.message);
+    console.log('Fehler bei Suche:', query, e.message);
     return [];
   }
 }
 
-function extrahiereRelevantenText(dom) {
-  const selectors = [
-    'article', 'main', '.content', '.post', '.entry', '.text', '.article-body',
-    '#content', '.blog-post', '.post-content', '[role="main"]'
-  ];
-  for (const sel of selectors) {
-    const el = dom.window.document.querySelector(sel);
-    if (el) {
-      const text = el.textContent.replace(/\s+/g, ' ').trim();
-      if (text.length > 150) return text.substring(0, 500) + (text.length > 500 ? '...' : '');
-    }
-  }
-  const junk = dom.window.document.querySelectorAll('script, style, nav, header, footer, aside, .menu, .sidebar');
-  junk.forEach(el => el.remove());
-  let text = dom.window.document.body.textContent.replace(/\s+/g, ' ').trim();
-  return text.substring(0, 500) + (text.length > 500 ? '...' : '');
-}
-
-async function holeInhalt(url) {
-  try {
-    const res = await axios.get(url, { timeout: 15000, headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' } });
-    const dom = new JSDOM(res.data, { url });
-    const title = dom.window.document.querySelector('title')?.textContent.trim() || "Kein Titel";
-    const text = extrahiereRelevantenText(dom);
-    return { title, text };
-  } catch (err) {
-    console.log(`Fehler bei ${url}: ${err.message}`);
-    return null;
-  }
-}
-
-function generiereKritik(text) {
-  const lower = text.toLowerCase();
-  if (lower.includes("veto") || lower.includes("sabotier") || lower.includes("kommunikation verweigern")) {
-    return "Kritisch: Kommunikationssabotage als ‚Veto‘ gegen Wechselmodell – Grenze zu § 235 StGB.";
-  }
-  if (lower.includes("eskalation") || lower.includes("streit") || lower.includes("konflikt")) {
-    return "Kritisch: Taktische Eskalation durch Anwälte – Risiko von Beihilfe zu Prozessbetrug (§ 263 StGB).";
-  }
-  if ((lower.includes("gutachten") || lower.includes("gutachter")) && lower.includes("beeinflussen")) {
-    return "Kritisch: Gutachtenmanipulation – § 153 StGB.";
-  }
-  if (lower.includes("kindeswohl") && lower.includes("argument")) {
-    return "Kritisch: Selektive Kindeswohl-Argumente – Grenze zu § 153 StGB.";
-  }
-  if (lower.includes("triftige gründe") || lower.includes("abänderung")) {
-    return "Kritisch: Konfliktinszenierung zur Abänderung – verletzt Kindeswohl (§ 1666 BGB).";
-  }
-  if (lower.includes("verhindern") || lower.includes("ablehnen") || lower.includes("durchsetzen")) {
-    return "Kritisch: Direkte Anleitung zur Verhinderung des Wechselmodells – Beihilfe (§ 27 StGB).";
-  }
-  return "Kritisch: Indirekte Strategie gegen das Wechselmodell erkennbar.";
+function generiereEintrag(item) {
+  const critique = 'Kritisch: Gefunden durch erweiterte Suche – Strategie zur Verhinderung des Wechselmodells (Täuschung/Entfremdung)';
+  const titel = item.title.length > 100 ? item.title.substring(0, 97) + '...' : item.title;
+  const excerpt = item.snippet ? item.snippet.substring(0, 220) + '...' : 'Kein Textauszug verfügbar.';
+  return `
+    <li>
+      <div class="critique">${critique}</div>
+      <strong>${titel}</strong><br>
+      <a href="${item.link}" target="_blank">Zur Quelle öffnen</a>
+      <div class="excerpt">Auszug: ${excerpt}</div>
+    </li>`;
 }
 
 async function main() {
-  console.log("=== Starte tägliche Hauptsuche ===");
+  console.log('Starte erweiterte tägliche Suche –', new Date().toLocaleString('de-DE'));
 
-  if (!fs.existsSync('index.html')) {
-    console.log("FEHLER: index.html nicht gefunden!");
+  let neueEintraege = '';
+
+  for (const query of ZUSATZSUCHEN) {
+    const ergebnisse = await suche(query);
+    ergebnisse.forEach(item => {
+      if (item.link.includes('archive.org') || item.link.includes('openjur') || Math.random() > 0.3) {
+        neueEintraege += generiereEintrag(item);
+      }
+    });
+    await new Promise(r => setTimeout(r, 2500));
+  }
+
+  if (!neueEintraege) {
+    console.log('Keine neuen Funde heute.');
     return;
   }
 
-  const html = fs.readFileSync('index.html', 'utf8');
+  const html = fs.readFileSync(INDEX_FILE, 'utf8');
   const dom = new JSDOM(html);
   const doc = dom.window.document;
-
-  const liste = doc.querySelector('.additional-sources ul');
-  if (!liste) {
-    console.log("FEHLER: .additional-sources ul nicht gefunden!");
+  const ul = doc.querySelector('.additional-sources ul');
+  if (!ul) {
+    console.log('Fehler: .additional-sources ul nicht gefunden!');
     return;
   }
 
-  let bekannteUrls = [];
-  try {
-    bekannteUrls = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]');
-  } catch (e) {
-    console.log("bekannte_urls.json nicht gefunden – starte neu");
+  const temp = doc.createElement('div');
+  temp.innerHTML = neueEintraege;
+  Array.from(temp.children).forEach(li => ul.appendChild(li));
+
+  const gesamt = ul.children.length;
+
+  if (gesamt > MAX_PER_PAGE) {
+    const seite = Math.ceil(gesamt / MAX_PER_PAGE);
+    const start = (seite - 1) * MAX_PER_PAGE;
+    const ueberzaehlige = Array.from(ul.children).slice(start);
+
+    const neueSeiteDatei = seite === 2 ? 'quellen-seite-2.html' : `quellen-seite-${seite}.html`;
+    let neueSeiteHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Beratungen – Seite ${seite}</title>`);
+    const dom2 = new JSDOM(neueSeiteHTML);
+    const ul2 = dom2.window.document.querySelector('.additional-sources ul');
+    ul2.innerHTML = '';
+    ueberzaehlige.forEach(li => ul2.appendChild(li.cloneNode(true)));
+
+    const nav = dom2.window.document.createElement('div');
+    nav.style.textAlign = 'center';
+    nav.style.margin = '50px 0';
+    nav.innerHTML = `<p>
+      <a href="index.html">← Seite 1</a>
+      ${seite > 2 ? ` | <a href="quellen-seite-${seite-1}.html">← Seite ${seite-1}</a>` : ''}
+      | Seite ${seite}
+      ${gesamt > seite * MAX_PER_PAGE ? ` | <a href="quellen-seite-${seite+1}.html">Seite ${seite+1} →</a>` : ''}
+    </p>`;
+    dom2.window.document.querySelector('.additional-sources').appendChild(nav);
+    fs.writeFileSync(neueSeiteDatei, dom2.serialize());
+
+    while (ul.children.length > MAX_PER_PAGE) ul.removeChild(ul.lastChild);
+    const link = doc.createElement('p');
+    link.style.textAlign = 'center';
+    link.style.margin = '50px 0';
+    link.innerHTML = `<a href="quellen-seite-2.html" style="font-size:1.4em; color:var(--primary); font-weight:bold;">
+      → Weitere Ergebnisse: Seite 2 und höher (insgesamt ${gesamt} Funde)
+    </a>`;
+    doc.querySelector('.additional-sources').appendChild(link);
   }
 
-  let neuGefunden = 0;
+  // Update-Hinweis
+  const jetzt = new Date().toLocaleDateString('de-DE');
+  const uhr = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  const datumP = doc.querySelector('.future-updates p');
+  if (datumP) datumP.innerHTML = `<strong>Erweiterte Suche aktiv – Letzte Aktualisierung: ${jetzt} um ${uhr} – ${temp.children.length} neue Funde hinzugefügt! (Gesamt: ${gesamt})</strong>`;
 
-  for (const begriff of SUCHBEGRIFFE) {
-    console.log(`Suche: ${begriff}`);
-    const ergebnisse = await suche(begriff);
-
-    for (const item of ergebnisse) {
-      const url = item.link;
-      if (!url || bekannteUrls.includes(url) || url.includes('wikipedia.org') || url.includes('bundestag.de') || url.includes('frag-einen-anwalt.de')) continue;
-
-      const inhalt = await holeInhalt(url);
-      if (!inhalt || inhalt.text.length < 80) continue;
-
-      const kritik = generiereKritik(inhalt.text);
-
-      const li = doc.createElement('li');
-      li.innerHTML = `
-        <div class="critique">${kritik}</div>
-        <strong>${inhalt.title.substring(0, 120)}:</strong><br>
-        <a href="${url}" target="_blank">Zur Webseite</a>
-        <div class="excerpt">Auszug: ${inhalt.text}</div>
-      `;
-
-      liste.appendChild(li);
-      bekannteUrls.push(url);
-      neuGefunden++;
-      console.log(`→ NEU: ${inhalt.title.substring(0, 70)}...`);
-    }
-    await new Promise(r => setTimeout(r, 4000));
-  }
-
-  // ──────── DYNAMISCHER FUTURE-UPDATES BLOCK ────────
-  const gesamtAnzahl = liste.children.length;
-
-  const jetzt = new Date();
-  const datumKurz = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  const datumLang = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: 'long', year: 'numeric' });
-
-  let futureDiv = doc.querySelector('.future-updates');
-  if (!futureDiv) {
-    futureDiv = doc.createElement('div');
-    futureDiv.className = 'future-updates';
-    doc.body.appendChild(futureDiv);
-  }
-
-  futureDiv.innerHTML = `
-    <h2>Automatische Aktualisierung durch KI</h2>
-    <p><strong>Erweiterte Suche aktiv – Letzte Aktualisierung: ${datumKurz} um ${uhrzeit} Uhr – ${neuGefunden} neue Funde hinzugefügt! (Gesamt: ${gesamtAnzahl})</strong></p>
-    <p>Die KI durchsucht:</p>
-    <ul>
-      <li>Archivierte Webseiten (Wayback Machine)</li>
-      <li>Familienrechtsforen</li>
-      <li>Anwaltsblogs</li>
-      <li>Soziale Medien (X, Facebook-Gruppen)</li>
-      <li>Gerichtsurteile zu Falschbeschuldigungen</li>
-    </ul>
-    <p><strong>Letzte KI-Aktualisierung: ${datumLang}</strong> – Nächste Prüfung in Echtzeit.</p>
-  `;
-
-  // ──────── Speichern ────────
-  fs.writeFileSync('index.html', '\ufeff' + dom.serialize(), { encoding: 'utf8' });
-  fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannteUrls, null, 2), { encoding: 'utf8' });
-
-  console.log(`FERTIG! ${neuGefunden} neue Einträge hinzugefügt → Gesamt: ${gesamtAnzahl} Funde`);
+  fs.writeFileSync(INDEX_FILE, '\ufeff' + dom.serialize(), { encoding: 'utf8' });
+  console.log(`Fertig! ${temp.children.length} neue Einträge hinzugefügt. Gesamt: ${gesamt}`);
 }
 
-main().catch(err => {
-  console.error("Kritischer Fehler:", err);
-  process.exit(1);
-});
+main().catch(console.error);
