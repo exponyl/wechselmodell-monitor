@@ -1,11 +1,10 @@
 {
   "name": "wechselmodell-monitor",
   "version": "1.0.0",
-  "description": "Automatischer Monitor für rechtswidrige Beratung zur Verhinderung des Wechselmodells",
+  "private": true,
   "type": "module",
   "scripts": {
-    "update": "node update-search.js",
-    "extra": "node extra-search.js"
+    "start": "node update-search.js"
   },
   "dependencies": {
     "axios": "^1.7.7",
