@@ -3,8 +3,10 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "description": "Automatischer Monitor für rechtswidrige Beratung zur Verhinderung des Wechselmodells",
   "scripts": {
-    "start": "node update-search.js"
+    "update": "node update-search.js",
+    "extra": "node extra-search.js"
   },
   "dependencies": {
     "axios": "^1.7.7",
