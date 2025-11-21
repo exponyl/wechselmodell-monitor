@@ -2,49 +2,77 @@ name: Tägliche automatische Aktualisierung
 
 on:
   schedule:
-    - cron: '0 4 * * *'
-  workflow_dispatch:
+    - cron: '0 4 * * *'        # Jeden Tag um 04:00 UTC (06:00 MEZ / 05:00 MESZ)
+  workflow_dispatch:         # Manuell auslösbar
 
 jobs:
   update:
-    runs-on: ubuntu-latest
+    runs-ubuntu-latest
     permissions:
-      contents: write         # ← WICHTIG: erlaubt Push
+      contents: write          # Erlaubt Commit & Push
       actions: read
 
     steps:
-      - name: Checkout
+      - name: Repository auschecken
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}   # Standard-Token reicht jetzt
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0          # Wichtig für saubere Diffs
 
-      - name: Node.js einrichten
+      - name: Node.js 20 einrichten
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
 
-      - name: Abhängigkeiten installieren
-        run: npm install
+      - name: Abhängigkeiten installieren (axios, jsdom)
+        run: npm install axios jsdom
 
-      - name: Suche starten
+      # ──────────────────────────────────────────────────────────────
+      # 1. Hauptsuche: Direkte, präzise Treffer (update-search.js)
+      # ──────────────────────────────────────────────────────────────
+      - name: Hauptsuche starten (Wechselmodell verhindern etc.)
         env:
           SERPER_KEY: ${{ secrets.SERPER_KEY }}
         run: node update-search.js
 
-      # ← HIER NUR DIESE ZWEI ZEILEN NEU HINZUGEFÜGT →
-      - name: Erweiterte Suche starten (Wayback, Urteile, Artikel)
+      # ──────────────────────────────────────────────────────────────
+      # 2. Erweiterte Suche: Wayback, Urteile, Medien, Foren
+      # ──────────────────────────────────────────────────────────────
+      - name: Erweiterte Suche starten (Wayback, Gerichte, Medien)
         env:
           SERPER_KEY: ${{ secrets.SERPER_KEY }}
         run: node extra-search.js
 
-      - name: Änderungen committen & pushen (nur wenn was geändert wurde)
+      # ──────────────────────────────────────────────────────────────
+      # 3. Änderungen committen & pushen – nur wenn wirklich was geändert wurde
+      # ──────────────────────────────────────────────────────────────
+      - name: Änderungen committen & pushen
         run: |
-          git config user.name "Auto-Update Bot"
-          git config user.email "actions@github.com"
-          git add index.html bekannte_urls.json
+          git config user.name "Wechselmodell-Monitor Bot"
+          git config user.email "bot@wechselmodell-monitor"
+          
+          git add index.html bekannte_urls.json quellen-seite-*.html 2>/dev/null || true
+          
           if git diff --staged --quiet; then
             echo "Keine Änderungen – nichts zu committen."
             exit 0
           fi
-          git commit -m "Auto-Update: $(date '+%d.%m.%Y %H:%M') – $(git diff --cached --name-only | wc -l) Datei(en) aktualisiert"
+          
+          # Anzahl geänderter Dateien zählen
+          changed_files=$(git diff --cached --name-only | wc -l)
+          new_entries=$(grep -c "NEU:" update-search.log 2>/dev/null || echo "0")
+          
+          git commit -m "Auto-Update $(date '+%d.%m.%Y %H:%M') – ${changed_files} Datei(en), ca. ${new_entries} neue Funde"
           git push
+          
+          echo "Erfolgreich gepusht! ${changed_files} Datei(en) aktualisiert."
+
+      # ──────────────────────────────────────────────────────────────
+      # Optional: Log-Datei für bessere Übersicht (kannst du später löschen)
+      # ──────────────────────────────────────────────────────────────
+      - name: Log speichern (für Debug)
+        if: always()
+        run: |
+          echo "=== Workflow-Lauf $(date) ===" >> update.log
+          cat update.log | tail -n 50 > update.log.tmp && mv update.log.tmp update.log
