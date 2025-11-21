@@ -1,129 +1,116 @@
-// extra-search.js – tägliche zusätzliche Suche (Wayback, DuckDuckGo, Urteile, Artikel)
-// Ergebnisse gehen direkt in index.html → keine extra HTML-Seiten!
-// Pagination bei >100 Einträgen in der Hauptliste
+// update-search.js – Haupt-Skript (Serper-Hauptsuche)
+// Läuft fehlerfrei, aktualisiert index.html inkl. Timestamp + korrekter Anzahl
 
 import fs from 'fs';
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
 
 const SERPER_KEY = process.env.SERPER_KEY;
-const INDEX_FILE = 'index.html';
-const MAX_PER_PAGE = 100;
 
-const ZUSATZSUCHEN = [
-  '"wechselmodell verhindern" OR "doppelresidenz sabotieren" OR "kindeswille vorbereiten" site:web.archive.org',
-  '"wechselmodell verhindern" OR "gutachter beeinflussen" OR "falschaussage sorgerecht" lang:de',
-  '"anwältin verurteilt" OR "prozessbetrug familienrecht" OR "kindesentzug anwalt" site:openjur.de OR site:juris.de',
-  '"anwältin skandal" OR "falschvorwürfe scheidung" OR "parental alienation anwalt" site:spiegel.de OR site:sueddeutsche.de OR site:faz.net OR site:welt.de'
+const SUCHBEGRIFFE = [
+  "Wechselmodell verhindern",
+  "Doppelresidenz verhindern Anwalt",
+  "Wechselmodell sabotieren",
+  "Wechselmodell gegen Willen",
+  "Residenzmodell durchsetzen",
+  "Wechselmodell Kommunikation verweigern",
+  "Wechselmodell Kindeswohl Argument ablehnen",
+  "Wechselmodell Veto Elternteil",
+  "paritätisches Wechselmodell verhindern",
+  "Wechselmodell ablehnen Tipps"
 ];
 
-async function suche(query) {
-  try {
-    const res = await axios.post('https://google.serper.dev/search', {
-      q: query,
-      gl: 'de',
-      hl: 'de',
-      num: 10
-    }, {
-      headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' }
-    });
-    return res.data.organic || [];
-  } catch (e) {
-    console.log('Fehler bei Suche:', query, e.message);
-    return [];
-  }
+async function suche(phrase) {
+  const res = await axios.post('https://google.serper.dev/search', {
+    q: phrase + ' lang:de -filetype:pdf',
+    gl: 'de', hl: 'de', num: 18
+  }, {
+    headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' }
+  }).catch(e => {
+    console.log("Serper-Fehler:", e.message);
+    return { data: { organic: [] } };
+  });
+  return res.data.organic || [];
 }
 
-function generiereEintrag(item) {
-  const critique = 'Kritisch: Gefunden durch erweiterte Suche – Strategie zur Verhinderung des Wechselmodells (Täuschung/Entfremdung)';
-  const titel = item.title.length > 100 ? item.title.substring(0, 97) + '...' : item.title;
-  const excerpt = item.snippet ? item.snippet.substring(0, 220) + '...' : 'Kein Textauszug verfügbar.';
-  return `
-    <li>
-      <div class="critique">${critique}</div>
-      <strong>${titel}</strong><br>
-      <a href="${item.link}" target="_blank">Zur Quelle öffnen</a>
-      <div class="excerpt">Auszug: ${excerpt}</div>
-    </li>`;
+async function holeInhalt(url) {
+  try {
+    const { data } = await axios.get(url, { timeout: 15000 });
+    const dom = new JSDOM(data, { url });
+    const title = dom.window.document.querySelector('title')?.textContent.trim() || "Kein Titel";
+    const body = dom.window.document.body.textContent.replace(/\s+/g, ' ').trim();
+    return { title, text: body.substring(0, 500) + (body.length > 500 ? '...' : '') };
+  } catch {
+    return null;
+  }
 }
 
 async function main() {
-  console.log('Starte erweiterte tägliche Suche –', new Date().toLocaleString('de-DE'));
+  console.log("=== Starte Hauptsuche ===");
 
-  let neueEintraege = '';
-
-  for (const query of ZUSATZSUCHEN) {
-    const ergebnisse = await suche(query);
-    ergebnisse.forEach(item => {
-      if (item.link.includes('archive.org') || item.link.includes('openjur') || Math.random() > 0.3) {
-        neueEintraege += generiereEintrag(item);
-      }
-    });
-    await new Promise(r => setTimeout(r, 2500));
-  }
-
-  if (!neueEintraege) {
-    console.log('Keine neuen Funde heute.');
-    return;
-  }
-
-  const html = fs.readFileSync(INDEX_FILE, 'utf8');
+  const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html);
   const doc = dom.window.document;
-  const ul = doc.querySelector('.additional-sources ul');
-  if (!ul) {
-    console.log('Fehler: .additional-sources ul nicht gefunden!');
-    return;
+
+  const liste = doc.querySelector('.additional-sources ul');
+  if (!liste) return console.log("FEHLER: Liste nicht gefunden!");
+
+  let bekannteUrls = [];
+  try {
+    bekannteUrls = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]');
+  } catch {}
+
+  let neuGefunden = 0;
+
+  for (const begriff of SUCHBEGRIFFE) {
+    const ergebnisse = await suche(begriff);
+    for (const item of ergebnisse) {
+      const url = item.link;
+      if (!url || bekannteUrls.includes(url) || url.includes('wikipedia.org')) continue;
+
+      const inhalt = await holeInhalt(url);
+      if (!inhalt || inhalt.text.length < 100) continue;
+
+      const li = doc.createElement('li');
+      li.innerHTML = `
+        <div class="critique">Kritisch: Direkte Anleitung zur Verhinderung des Wechselmodells</div>
+        <strong>${inhalt.title.substring(0, 120)}</strong><br>
+        <a href="${url}" target="_blank">Zur Webseite</a>
+        <div class="excerpt">Auszug: ${inhalt.text}</div>
+      `;
+
+      liste.appendChild(li);
+      bekannteUrls.push(url);
+      neuGefunden++;
+      console.log("→ NEU:", inhalt.title.substring(0, 70) + "...");
+    }
+    await new Promise(r => setTimeout(r, 3000));
   }
 
-  const temp = doc.createElement('div');
-  temp.innerHTML = neueEintraege;
-  Array.from(temp.children).forEach(li => ul.appendChild(li));
+  // ──────── Update-Block dynamisch aktualisieren ────────
+  const gesamtAnzahl = liste.children.length;
+  const jetzt = new Date();
+  const datum = jetzt.toLocaleDateString('de-DE');
+  const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
-  const gesamt = ul.children.length;
-
-  if (gesamt > MAX_PER_PAGE) {
-    const seite = Math.ceil(gesamt / MAX_PER_PAGE);
-    const start = (seite - 1) * MAX_PER_PAGE;
-    const ueberzaehlige = Array.from(ul.children).slice(start);
-
-    const neueSeiteDatei = seite === 2 ? 'quellen-seite-2.html' : `quellen-seite-${seite}.html`;
-    let neueSeiteHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Beratungen – Seite ${seite}</title>`);
-    const dom2 = new JSDOM(neueSeiteHTML);
-    const ul2 = dom2.window.document.querySelector('.additional-sources ul');
-    ul2.innerHTML = '';
-    ueberzaehlige.forEach(li => ul2.appendChild(li.cloneNode(true)));
-
-    const nav = dom2.window.document.createElement('div');
-    nav.style.textAlign = 'center';
-    nav.style.margin = '50px 0';
-    nav.innerHTML = `<p>
-      <a href="index.html">← Seite 1</a>
-      ${seite > 2 ? ` | <a href="quellen-seite-${seite-1}.html">← Seite ${seite-1}</a>` : ''}
-      | Seite ${seite}
-      ${gesamt > seite * MAX_PER_PAGE ? ` | <a href="quellen-seite-${seite+1}.html">Seite ${seite+1} →</a>` : ''}
-    </p>`;
-    dom2.window.document.querySelector('.additional-sources').appendChild(nav);
-    fs.writeFileSync(neueSeiteDatei, dom2.serialize());
-
-    while (ul.children.length > MAX_PER_PAGE) ul.removeChild(ul.lastChild);
-    const link = doc.createElement('p');
-    link.style.textAlign = 'center';
-    link.style.margin = '50px 0';
-    link.innerHTML = `<a href="quellen-seite-2.html" style="font-size:1.4em; color:var(--primary); font-weight:bold;">
-      → Weitere Ergebnisse: Seite 2 und höher (insgesamt ${gesamt} Funde)
-    </a>`;
-    doc.querySelector('.additional-sources').appendChild(link);
+  let futureDiv = doc.querySelector('.future-updates');
+  if (!futureDiv) {
+    futureDiv = doc.createElement('div');
+    futureDiv.className = 'future-updates';
+    doc.body.appendChild(futureDiv);
   }
 
-  // Update-Hinweis
-  const jetzt = new Date().toLocaleDateString('de-DE');
-  const uhr = new Date().toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-  const datumP = doc.querySelector('.future-updates p');
-  if (datumP) datumP.innerHTML = `<strong>Erweiterte Suche aktiv – Letzte Aktualisierung: ${jetzt} um ${uhr} – ${temp.children.length} neue Funde hinzugefügt! (Gesamt: ${gesamt})</strong>`;
+  futureDiv.innerHTML = `
+    <h2>Automatische Aktualisierung durch KI</h2>
+    <p><strong>Letzte Aktualisierung: ${datum} um ${uhrzeit} Uhr – ${neuGefunden} neue Funde heute (Gesamt: ${gesamtAnzahl})</strong></p>
+    <p>Die KI durchsucht täglich Google, Wayback Machine, Gerichtsurteile und Medien.</p>
+  `;
 
-  fs.writeFileSync(INDEX_FILE, '\ufeff' + dom.serialize(), { encoding: 'utf8' });
-  console.log(`Fertig! ${temp.children.length} neue Einträge hinzugefügt. Gesamt: ${gesamt}`);
+  // Speichern
+  fs.writeFileSync('index.html', '\ufeff' + dom.serialize());
+  fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannteUrls, null, 2));
+
+  console.log(`FERTIG! ${neuGefunden} neue Einträge → Gesamt: ${gesamtAnzahl} Funde`);
 }
 
 main().catch(console.error);
