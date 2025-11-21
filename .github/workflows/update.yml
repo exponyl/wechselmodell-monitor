@@ -2,12 +2,12 @@ name: Tägliche automatische Aktualisierung
 
 on:
   schedule:
-    - cron: '0 4 * * *'        # Jeden Tag 04:00 UTC → 05:00 MEZ / 06:00 MESZ
-  workflow_dispatch:         # Manuell auslösbar
+    - cron: '0 4 * * *'
+  workflow_dispatch:
 
 jobs:
   update:
-    runs-on: ubuntu-latest     # ← korrigiert!
+    runs-on: ubuntu-latest
     permissions:
       contents: write
       actions: read
@@ -28,12 +28,12 @@ jobs:
       - name: Abhängigkeiten installieren
         run: npm install axios jsdom
 
-      - name: Hauptsuche starten (update-search.js)
+      - name: Hauptsuche starten
         env:
           SERPER_KEY: ${{ secrets.SERPER_KEY }}
         run: node update-search.js
 
-      - name: Erweiterte Suche starten (extra-search.js)
+      - name: Erweiterte Suche starten
         env:
           SERPER_KEY: ${{ secrets.SERPER_KEY }}
         run: node extra-search.js
@@ -51,13 +51,7 @@ jobs:
           fi
 
           changed=$(git diff --cached --name-only | wc -l)
-          git commit -m "Auto-Update $(date '+%d.%m.%Y %H:%M') – ${changed} Datei(en) aktualisiert"
+          git commit -m "Auto-Update $(date '+%d.%m.%Y %H:%M') – ${changed} Datei(en)"
           git push
 
-          echo "Erfolgreich gepusht – ${changed} Datei(en) geändert."
-
-      - name: Log bereinigen (optional)
-        if: always()
-        run: |
-          echo "=== Workflow-Lauf $(date '+%d.%m.%Y %H:%M') ===" >> update.log
-          tail -n 100 update.log > update.log.tmp && mv update.log.tmp update.log || true
+          echo "Push erfolgreich – ${changed} Datei(en) aktualisiert."
