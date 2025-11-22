@@ -15,10 +15,10 @@ const ZUSATZSUCHEN = [
 
 function bestimmeKritischGrund(text = '') {
   const lower = text.toLowerCase();
-  if (/(veto|ablehnen.*elternteil|verweigern.*kommunikation)/i.test(lower)) return "Kritisch: Impliziert Kommunikationssabotage als ‚Veto‘ gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).";
-  if (/(kindeswohl|kindeswohl-argument|wohl des kindes)/i.test(lower)) return "Kritisch: Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente‘ – impliziert selektive Darstellung, Grenze zu § 153 StGB.";
-  if (/(triftige gründe|abänderung|änderung.*modell)/i.test(lower)) return "Kritisch: Fördert Abänderung durch ‚triftige Gründe‘ – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).";
-  if (/(ausweg|streit|distanz|eskalation|konflikt.*inszenierung|falschaussage|gutachter.*beeinflussen|kindeswille.*vorbereiten)/i.test(lower)) return "Kritisch: Explizite ‚Auswege‘ zur Verhinderung durch Streit und Distanz – direkte Anleitung zu Eskalation, strafbar als Beihilfe (§ 27 StGB).";
+  if (/(veto|ablehnen.*elternteil|verweigern.*kommunikation)/i.test(lower)) return "Kritisch: Impliziert Kommunikationssabotage als ‚Veto' gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).";
+  if (/(kindeswohl|kindeswohl-argument|wohl des kindes)/i.test(lower)) return "Kritisch: Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente' – impliziert selektive Darstellung, Grenze zu § 153 StGB.";
+  if (/(triftige gründe|abänderung|änderung.*modell)/i.test(lower)) return "Kritisch: Fördert Abänderung durch ‚triftige Gründe' – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).";
+  if (/(ausweg|streit|distanz|eskalation|konflikt.*inszenierung|falschaussage|gutachter.*beeinflussen|kindeswille.*vorbereiten)/i.test(lower)) return "Kritisch: Explizite ‚Auswege' zur Verhinderung durch Streit und Distanz – direkte Anleitung zu Eskalation, strafbar als Beihilfe (§ 27 StGB).";
   if (/(indirekt|versteckt|strategie|trick|täuschung|entfremdung|prozessbetrug)/i.test(lower)) return "Kritisch: Indirekte Strategie gegen das Wechselmodell erkennbar.";
   return "Kritisch: Archivierte oder mediale Quelle zu Strategien gegen das Wechselmodell (Entfremdung/Täuschung).";
 }
@@ -44,27 +44,34 @@ async function main() {
   const tempDiv = doc.createElement('div');
 
   for (const query of ZUSATZSUCHEN) {
+    console.log(`Extra-Suche nach: ${query}`);
     const ergebnisse = await suche(query, 12);
     for (const item of ergebnisse) {
       const url = item.link?.trim();
       if (!url) continue;
 
-      const snippet = item.snippet || item.title || '';
-      const istRelevant = url.includes('archive.org') || url.includes('openjur') || url.includes('juris.de') ||
-                          url.includes('spiegel.de') || url.includes('sueddeutsche.de') || url.includes('faz.net') || url.includes('welt.de') ||
+      const snippet = (item.snippet || item.title || '');
+      const istRelevant = url.includes('archive.org') ||
+                          url.includes('openjur') || url.includes('juris.de') ||
+                          url.includes('spiegel.de') || url.includes('sueddeutsche.de') ||
+                          url.includes('faz.net') || url.includes('welt.de') ||
                           Math.random() > 0.35;
 
       if (!istRelevant) continue;
 
+      const grund = bestimmeKritischGrund(snippet + ' ' + (item.title || ''));
+      const titel = (item.title || 'Kein Titel').length > 110 ? (item.title || 'Kein Titel').substring(0, 107) + '...' : (item.title || 'Kein Titel');
+
       const li = doc.createElement('li');
       li.innerHTML = `
-        <div class="critique">${bestimmeKritischGrund(snippet + ' ' + item.title)}</div>
-        <strong>${(item.title || 'Kein Titel').substring(0, 110)}${(item.title || '').length > 110 ? '...' : ''}</strong><br>
+        <div class="critique">${grund}</div>
+        <strong>${titel}</strong><br>
         <a href="${url}" target="_blank">Zur Quelle öffnen</a>
         <div class="excerpt">Auszug: ${kuerzeAuszug(snippet)}</div>
       `;
       tempDiv.appendChild(li);
       neueEintraege++;
+      console.log("→ EXTRA NEU:", titel.substring(0, 50) + "...");
     }
     await new Promise(r => setTimeout(r, 2800));
   }
@@ -75,24 +82,34 @@ async function main() {
 
   const gesamtAnzahl = ul.children.length;
 
+  // bekannte_urls.json aktualisieren
   let bekannteUrls = [];
   try { bekannteUrls = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]'); } catch {}
+  let updated = false;
   Array.from(ul.children).forEach(li => {
     const link = li.querySelector('a')?.getAttribute('href');
-    if (link && !bekannteUrls.includes(link)) bekannteUrls.push(link);
+    if (link && !bekannteUrls.includes(link)) {
+      bekannteUrls.push(link);
+      updated = true;
+    }
   });
-  fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannteUrls, null, 2));
+  if (updated) {
+    fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannteUrls, null, 2));
+    console.log(`bekannte_urls.json aktualisiert → ${bekannteUrls.length} Einträge`);
+  }
 
-  doc.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement?.remove());
+  // Alte "Weitere Ergebnisse"-Links entfernen
+  doc.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement.remove());
 
+  // Pagination
   if (gesamtAnzahl > MAX_PER_PAGE) {
     const seite = Math.ceil(gesamtAnzahl / MAX_PER_PAGE);
     const start = (seite - 1) * MAX_PER_PAGE;
     const ueberzaehlige = Array.from(ul.children).slice(start);
 
     const seitenDatei = seite === 2 ? 'quellen-seite-2.html' : `quellen-seite-${seite}.html`;
-    let neueHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Beratungen – Seite ${seite}</title>`);
-    const dom2 = new JSDOM(neueHTML);
+    let neueSeiteHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Beratungen – Seite ${seite}</title>`);
+    const dom2 = new JSDOM(neueSeiteHTML);
     const ul2 = dom2.window.document.querySelector('.additional-sources ul');
     ul2.innerHTML = '';
     ueberzaehlige.forEach(li => ul2.appendChild(li.cloneNode(true)));
@@ -113,13 +130,17 @@ async function main() {
     doc.querySelector('.additional-sources').appendChild(mehrLink);
   }
 
+  // Finaler Timestamp
   const jetzt = new Date();
   const datum = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const uhr = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
   let futureDiv = doc.querySelector('.future-updates');
-  if (!futureDiv) { futureDiv = doc.createElement('div'); futureDiv.className = 'future-updates'; doc.body.appendChild(futureDiv); }
-
+  if (!futureDiv) {
+    futureDiv = doc.createElement('div');
+    futureDiv.className = 'future-updates';
+    doc.body.appendChild(futureDiv);
+  }
   futureDiv.innerHTML = `
     <h2>Automatische Aktualisierung durch KI</h2>
     <p><strong>Letzte Aktualisierung: ${datum} um ${uhr} Uhr – ${neueEintraege} neue Funde heute (Gesamt: ${gesamtAnzahl})</strong></p>
