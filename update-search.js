@@ -20,10 +20,10 @@ const SUCHBEGRIFFE = [
 
 function bestimmeKritischGrund(text) {
   const lower = text.toLowerCase();
-  if (/(veto|ablehnen.*elternteil|verweigern.*kommunikation)/i.test(lower)) return "Kritisch: Impliziert Kommunikationssabotage als ‚Veto‘ gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).";
-  if (/(kindeswohl|kindeswohl-argument|wohl des kindes)/i.test(lower)) return "Kritisch: Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente‘ – impliziert selektive Darstellung, Grenze zu § 153 StGB.";
-  if (/(triftige gründe|abänderung|änderung.*modell)/i.test(lower)) return "Kritisch: Fördert Abänderung durch ‚triftige Gründe‘ – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).";
-  if (/(ausweg|streit|distanz|eskalation|konflikt.*inszenierung)/i.test(lower)) return "Kritisch: Explizite ‚Auswege‘ zur Verhinderung durch Streit und Distanz – direkte Anleitung zu Eskalation, strafbar als Beihilfe (§ 27 StGB).";
+  if (/(veto|ablehnen.*elternteil|verweigern.*kommunikation)/i.test(lower)) return "Kritisch: Impliziert Kommunikationssabotage als ‚Veto' gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).";
+  if (/(kindeswohl|kindeswohl-argument|wohl des kindes)/i.test(lower)) return "Kritisch: Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente' – impliziert selektive Darstellung, Grenze zu § 153 StGB.";
+  if (/(triftige gründe|abänderung|änderung.*modell)/i.test(lower)) return "Kritisch: Fördert Abänderung durch ‚triftige Gründe' – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).";
+  if (/(ausweg|streit|distanz|eskalation|konflikt.*inszenierung)/i.test(lower)) return "Kritisch: Explizite ‚Auswege' zur Verhinderung durch Streit und Distanz – direkte Anleitung zu Eskalation, strafbar als Beihilfe (§ 27 StGB).";
   if (/(indirekt|versteckt|strategie|trick)/i.test(lower)) return "Kritisch: Indirekte Strategie gegen das Wechselmodell erkennbar.";
   return "Kritisch: Direkte Anleitung zur Verhinderung des Wechselmodells";
 }
@@ -42,6 +42,7 @@ async function holeInhalt(url) {
     const bodyText = dom.window.document.body.textContent.replace(/\s+/g, ' ').trim();
     return { title, text: bodyText };
   } catch (err) {
+    console.log("Fehler beim Laden von", url);
     return null;
   }
 }
@@ -52,15 +53,19 @@ async function main() {
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html);
   const doc = dom.window.document;
+
   const liste = doc.querySelector('.additional-sources ul');
   if (!liste) return console.log("FEHLER: .additional-sources ul nicht gefunden!");
 
   let bekannteUrls = [];
-  try { bekannteUrls = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]'); } catch {}
+  try {
+    bekannteUrls = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]');
+  } catch {}
 
   let neuGefunden = 0;
 
   for (const begriff of SUCHBEGRIFFE) {
+    console.log(`Suche nach: ${begriff}`);
     const ergebnisse = await suche(begriff, 18);
     for (const item of ergebnisse) {
       const url = item.link?.trim();
@@ -69,12 +74,15 @@ async function main() {
       const inhalt = await holeInhalt(url);
       if (!inhalt || inhalt.text.length < 150) continue;
 
+      const kritik = bestimmeKritischGrund(inhalt.text);
+      const auszug = kuerzeAuszug(inhalt.text);
+
       const li = doc.createElement('li');
       li.innerHTML = `
-        <div class="critique">${bestimmeKritischGrund(inhalt.text)}</div>
+        <div class="critique">${kritik}</div>
         <strong>${inhalt.title.substring(0, 120)}</strong><br>
         <a href="${url}" target="_blank">Zur Webseite</a>
-        <div class="excerpt">Auszug: ${kuerzeAuszug(inhalt.text)}</div>
+        <div class="excerpt">Auszug: ${auszug}</div>
       `;
 
       liste.appendChild(li);
@@ -87,16 +95,18 @@ async function main() {
 
   const gesamtAnzahl = liste.children.length;
 
-  doc.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement?.remove());
+  // Alte "Weitere Ergebnisse"-Links entfernen (verhindert Duplikate)
+  doc.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement.remove());
 
+  // Pagination nur wenn nötig
   if (gesamtAnzahl > MAX_PER_PAGE) {
     const seite = Math.ceil(gesamtAnzahl / MAX_PER_PAGE);
     const start = (seite - 1) * MAX_PER_PAGE;
     const ueberzaehlige = Array.from(liste.children).slice(start);
 
     const seitenDatei = seite === 2 ? 'quellen-seite-2.html' : `quellen-seite-${seite}.html`;
-    let neueHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Beratungen – Seite ${seite}</title>`);
-    const dom2 = new JSDOM(neueHTML);
+    let neueSeiteHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Beratungen – Seite ${seite}</title>`);
+    const dom2 = new JSDOM(neueSeiteHTML);
     const ul2 = dom2.window.document.querySelector('.additional-sources ul');
     ul2.innerHTML = '';
     ueberzaehlige.forEach(li => ul2.appendChild(li.cloneNode(true)));
@@ -117,19 +127,24 @@ async function main() {
     doc.querySelector('.additional-sources').appendChild(mehrLink);
   }
 
+  // Timestamp aktualisieren
   const jetzt = new Date();
   const datum = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
-  const uhr = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+  const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
   let futureDiv = doc.querySelector('.future-updates');
-  if (!futureDiv) { futureDiv = doc.createElement('div'); futureDiv.className = 'future-updates'; doc.body.appendChild(futureDiv); }
-
+  if (!futureDiv) {
+    futureDiv = doc.createElement('div');
+    futureDiv.className = 'future-updates';
+    doc.body.appendChild(futureDiv);
+  }
   futureDiv.innerHTML = `
     <h2>Automatische Aktualisierung durch KI</h2>
-    <p><strong>Letzte Aktualisierung: ${datum} um ${uhr} Uhr – ${neuGefunden} neue Funde heute (Gesamt: ${gesamtAnzahl})</strong></p>
+    <p><strong>Letzte Aktualisierung: ${datum} um ${uhrzeit} Uhr – ${neuGefunden} neue Funde heute (Gesamt: ${gesamtAnzahl})</strong></p>
     <p>Die KI durchsucht täglich Google, Wayback Machine, Gerichtsurteile und Medien.</p>
   `;
 
+  // Speichern
   fs.writeFileSync('index.html', '\ufeff' + dom.serialize());
   fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannteUrls, null, 2));
 
