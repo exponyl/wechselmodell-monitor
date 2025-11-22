@@ -95,28 +95,59 @@ async function main() {
 
   const gesamtAnzahl = liste.children.length;
 
-  // Alte "Weitere Ergebnisse"-Links entfernen (verhindert Duplikate)
+  // Alte "Weitere Ergebnisse"-Links auf Hauptseite entfernen
   doc.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement.remove());
 
-  // Pagination nur wenn nötig
+  // Erweiterte Pagination: Alle Subseiten neu generieren, um alte Zahlen zu überschreiben
   if (gesamtAnzahl > MAX_PER_PAGE) {
     const seite = Math.ceil(gesamtAnzahl / MAX_PER_PAGE);
     const start = (seite - 1) * MAX_PER_PAGE;
     const ueberzaehlige = Array.from(liste.children).slice(start);
 
-    const seitenDatei = seite === 2 ? 'quellen-seite-2.html' : `quellen-seite-${seite}.html`;
-    let neueSeiteHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Beratungen – Seite ${seite}</title>`);
-    const dom2 = new JSDOM(neueSeiteHTML);
-    const ul2 = dom2.window.document.querySelector('.additional-sources ul');
-    ul2.innerHTML = '';
-    ueberzaehlige.forEach(li => ul2.appendChild(li.cloneNode(true)));
+    // Für jede mögliche Subseite neu generieren (löscht alte und erstellt frisch)
+    for (let s = 2; s <= seite; s++) {
+      const seitenStart = (s - 1) * MAX_PER_PAGE;
+      const seitenUeberzaehlige = Array.from(liste.children).slice(seitenStart, seitenStart + MAX_PER_PAGE);
+      const seitenDatei = s === 2 ? 'quellen-seite-2.html' : `quellen-seite-${s}.html`;
+      
+      let neueSeiteHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Beratungen – Seite ${s}</title>`);
+      const dom2 = new JSDOM(neueSeiteHTML);
+      const ul2 = dom2.window.document.querySelector('.additional-sources ul');
+      ul2.innerHTML = '';
+      seitenUeberzaehlige.forEach(li => ul2.appendChild(li.cloneNode(true)));
 
-    const nav = dom2.window.document.createElement('div');
-    nav.style.textAlign = 'center'; nav.style.margin = '50px 0';
-    nav.innerHTML = `<p><a href="index.html">← Seite 1</a>${seite > 2 ? ` | <a href="quellen-seite-${seite-1}.html">← Seite ${seite-1}</a>` : ''} | Seite ${seite}</p>`;
-    dom2.window.document.querySelector('.additional-sources').appendChild(nav);
-    fs.writeFileSync(seitenDatei, '\ufeff' + dom2.serialize());
+      // Navigation auf jeder Subseite
+      const nav = dom2.window.document.createElement('div');
+      nav.style.textAlign = 'center'; nav.style.margin = '50px 0';
+      let navHTML = `<p>`;
+      if (s > 1) navHTML += `<a href="index.html">← Seite 1</a> | `;
+      if (s > 2) navHTML += `<a href="quellen-seite-${s-1}.html">← Seite ${s-1}</a> | `;
+      navHTML += `Seite ${s}`;
+      if (s < seite) navHTML += ` | <a href="quellen-seite-${s+1}.html">Seite ${s+1} →</a>`;
+      navHTML += `</p>`;
+      nav.innerHTML = navHTML;
+      dom2.window.document.querySelector('.additional-sources').appendChild(nav);
 
+      // Alten Link auf Subseite entfernen (falls vorhanden)
+      dom2.window.document.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement.remove());
+
+      // Timestamp auch auf Subseiten aktualisieren
+      const jetzt = new Date();
+      const datum = jetzt.toLocaleDateString('de-DE');
+      const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      let futureDiv2 = dom2.window.document.querySelector('.future-updates');
+      if (!futureDiv2) { futureDiv2 = dom2.window.document.createElement('div'); futureDiv2.className = 'future-updates'; dom2.window.document.body.appendChild(futureDiv2); }
+      futureDiv2.innerHTML = `
+        <h2>Automatische Aktualisierung durch KI</h2>
+        <p><strong>Letzte Aktualisierung: ${datum} um ${uhrzeit} Uhr – Gesamt: ${gesamtAnzahl} Funde</strong></p>
+        <p>Die KI durchsucht täglich Google, Wayback Machine, Gerichtsurteile und Medien.</p>
+      `;
+
+      fs.writeFileSync(seitenDatei, '\ufeff' + dom2.serialize());
+      console.log(`Subseite ${s} neu generiert: ${seitenUeberzaehlige.length} Einträge`);
+    }
+
+    // Hauptseite kürzen + neuer Link mit aktueller Zahl
     while (liste.children.length > MAX_PER_PAGE) liste.removeChild(liste.lastChild);
 
     const mehrLink = doc.createElement('p');
@@ -127,7 +158,7 @@ async function main() {
     doc.querySelector('.additional-sources').appendChild(mehrLink);
   }
 
-  // Timestamp aktualisieren
+  // Timestamp auf Hauptseite
   const jetzt = new Date();
   const datum = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
@@ -144,7 +175,6 @@ async function main() {
     <p>Die KI durchsucht täglich Google, Wayback Machine, Gerichtsurteile und Medien.</p>
   `;
 
-  // Speichern
   fs.writeFileSync('index.html', '\ufeff' + dom.serialize());
   fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannteUrls, null, 2));
 
