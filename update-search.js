@@ -1,10 +1,8 @@
-// update-search.js – 100% unabhängig, läuft auch solo perfekt
-
 import fs from 'fs';
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
+import { suche } from './search-apis.js';
 
-const SERPER_KEY = process.env.SERPER_KEY;
 const MAX_PER_PAGE = 100;
 
 const SUCHBEGRIFFE = [
@@ -36,18 +34,6 @@ function kuerzeAuszug(text) {
   return text.slice(0, max).trim() + "…";
 }
 
-async function suche(phrase) {
-  try {
-    const res = await axios.post('https://google.serper.dev/search', { q: phrase + ' lang:de -filetype:pdf', gl: 'de', hl: 'de', num: 18 }, {
-      headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' }
-    });
-    return res.data.organic || [];
-  } catch (e) {
-    console.log("Serper-Fehler:", e.message);
-    return [];
-  }
-}
-
 async function holeInhalt(url) {
   try {
     const { data } = await axios.get(url, { timeout: 15000 });
@@ -56,7 +42,6 @@ async function holeInhalt(url) {
     const bodyText = dom.window.document.body.textContent.replace(/\s+/g, ' ').trim();
     return { title, text: bodyText };
   } catch (err) {
-    console.log("Fehler beim Laden von", url);
     return null;
   }
 }
@@ -67,7 +52,6 @@ async function main() {
   const html = fs.readFileSync('index.html', 'utf8');
   const dom = new JSDOM(html);
   const doc = dom.window.document;
-
   const liste = doc.querySelector('.additional-sources ul');
   if (!liste) return console.log("FEHLER: .additional-sources ul nicht gefunden!");
 
@@ -77,7 +61,7 @@ async function main() {
   let neuGefunden = 0;
 
   for (const begriff of SUCHBEGRIFFE) {
-    const ergebnisse = await suche(begriff);
+    const ergebnisse = await suche(begriff, 18);
     for (const item of ergebnisse) {
       const url = item.link?.trim();
       if (!url || bekannteUrls.includes(url) || url.includes('wikipedia.org')) continue;
@@ -96,24 +80,23 @@ async function main() {
       liste.appendChild(li);
       bekannteUrls.push(url);
       neuGefunden++;
+      console.log("→ NEU:", inhalt.title.substring(0, 70) + "...");
     }
     await new Promise(r => setTimeout(r, 3000));
   }
 
   const gesamtAnzahl = liste.children.length;
 
-  // --- Alte "Weitere Ergebnisse"-Links entfernen (verhindert Duplikate) ---
-  doc.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement.remove());
+  doc.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement?.remove());
 
-  // --- Pagination nur wenn nötig ---
   if (gesamtAnzahl > MAX_PER_PAGE) {
     const seite = Math.ceil(gesamtAnzahl / MAX_PER_PAGE);
     const start = (seite - 1) * MAX_PER_PAGE;
     const ueberzaehlige = Array.from(liste.children).slice(start);
 
     const seitenDatei = seite === 2 ? 'quellen-seite-2.html' : `quellen-seite-${seite}.html`;
-    let neueSeiteHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Beratungen – Seite ${seite}</title>`);
-    const dom2 = new JSDOM(neueSeiteHTML);
+    let neueHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Beratungen – Seite ${seite}</title>`);
+    const dom2 = new JSDOM(neueHTML);
     const ul2 = dom2.window.document.querySelector('.additional-sources ul');
     ul2.innerHTML = '';
     ueberzaehlige.forEach(li => ul2.appendChild(li.cloneNode(true)));
@@ -134,7 +117,6 @@ async function main() {
     doc.querySelector('.additional-sources').appendChild(mehrLink);
   }
 
-  // --- Timestamp & Speichern ---
   const jetzt = new Date();
   const datum = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const uhr = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
