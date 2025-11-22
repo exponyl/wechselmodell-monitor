@@ -2,8 +2,8 @@ name: Tägliche automatische Aktualisierung
 
 on:
   schedule:
-    - cron: '0 4 * * *'
-  workflow_dispatch:
+    - cron: '0 4 * * *'   # jeden Tag um 4:00 UTC (6:00 deutsche Zeit)
+  workflow_dispatch:     # manuell auslösbar
 
 jobs:
   update:
@@ -12,23 +12,38 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Repository auschecken
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Node.js 20 einrichten
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - run: npm install axios jsdom
+      - name: Abhängigkeiten installieren
+        run: npm install axios jsdom
 
-      - name: Hauptsuche
+      - name: Hauptsuche ausführen (update-search.js)
         env:
           SERPER_KEY: ${{ secrets.SERPER_KEY }}
         run: node update-search.js
 
-      - name: Commit & Push (nur wenn geändert)
+      - name: Erweiterte Suche ausführen (extra-search.js)
+        env:
+          SERPER_KEY: ${{ secrets.SERPER_KEY }}
+        run: node extra-search.js
+
+      - name: Änderungen committen & pushen (nur wenn etwas geändert wurde)
         run: |
-          git config user.name "Bot"
-          git config user.email "bot@github.com"
-          git add index.html bekannte_urls.json
-          git diff --staged --quiet || git commit -m "Auto-Update $(date '+%d.%m.%Y %H:%M')"
-          git push || echo "Nichts zu pushen"
+          git config user.name "Wechselmodell-Monitor Bot"
+          git config user.email "bot@users.noreply.github.com"
+          
+          git add index.html bekannte_urls.json quellen-seite-*.html || true
+          
+          if git diff --staged --quiet; then
+            echo "Keine Änderungen → nichts zu pushen"
+          else
+            git commit -m "Auto-Update: $(date '+%d.%m.%Y %H:%M') – Haupt- + erweiterte Suche"
+            git push
+            echo "Änderungen erfolgreich gepusht"
+          fi
