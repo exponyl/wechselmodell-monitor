@@ -25,12 +25,16 @@ jobs:
 
       - name: Hauptsuche + Erweiterte Suche
         env:
-          SEARCH_API: ${{ secrets.SEARCH_API }}  # optional: serper / newsapi / auto
+          SEARCH_API: ${{ secrets.SEARCH_API }}  # optional: serper / tavily / newsapi / auto
           SERPER_KEY: ${{ secrets.SERPER_KEY }}
+          TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
           NEWSAPI_KEY: ${{ secrets.NEWSAPI_KEY }}
         run: |
+          echo "=== Starte update-search.js ==="
           node update-search.js
+          echo "=== Starte extra-search.js ==="
           node extra-search.js
+          echo "=== Suchen abgeschlossen ==="
 
       - name: Änderungen committen & pushen (nur wenn etwas geändert)
         run: |
@@ -40,7 +44,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "Keine Änderungen → nichts zu pushen"
           else
-            git commit -m "Auto-Update: $(date '+%d.%m.%Y %H:%M') – Haupt- + erweiterte Suche"
+            git commit -m "Auto-Update: $(date '+%d.%m.%Y %H:%M') – Haupt- + erweiterte Suche (inkl. Subseiten-Fix)"
             git push
             echo "Änderungen gepusht"
           fi
