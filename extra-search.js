@@ -1,5 +1,4 @@
-// extra-search.js – Erweiterte tägliche Suche (Wayback, Urteile, Medien etc.)
-// Vollständig überarbeitet: kurze Auszüge + dynamische Kritisch-Gründe + Pagination + Timestamp
+// extra-search.js – 100% unabhängig, läuft auch solo einwandfrei
 
 import fs from 'fs';
 import axios from 'axios';
@@ -9,26 +8,13 @@ const SERPER_KEY = process.env.SERPER_KEY;
 const INDEX_FILE = 'index.html';
 const MAX_PER_PAGE = 100;
 
-// ───── Gleiche Logik wie in update-search.js ─────
 function bestimmeKritischGrund(text = '') {
   const lower = text.toLowerCase();
-
-  if (/(veto|ablehnen.*elternteil|verweigern.*kommunikation)/i.test(lower)) {
-    return "Kritisch: Impliziert Kommunikationssabotage als ‚Veto‘ gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).";
-  }
-  if (/(kindeswohl|kindeswohl-argument|wohl des kindes)/i.test(lower)) {
-    return "Kritisch: Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente‘ – impliziert selektive Darstellung, Grenze zu § 153 StGB.";
-  }
-  if (/(triftige gründe|abänderung|änderung.*modell)/i.test(lower)) {
-    return "Kritisch: Fördert Abänderung durch ‚triftige Gründe‘ – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).";
-  }
-  if (/(ausweg|streit|distanz|eskalation|konflikt.*inszenierung|falschaussage|gutachter.*beeinflussen|kindeswille.*vorbereiten)/i.test(lower)) {
-    return "Kritisch: Explizite ‚Auswege‘ zur Verhinderung durch Streit und Distanz – direkte Anleitung zu Eskalation, strafbar als Beihilfe (§ 27 StGB).";
-  }
-  if (/(indirekt|versteckt|strategie|trick|täuschung|entfremdung|prozessbetrug)/i.test(lower)) {
-    return "Kritisch: Indirekte Strategie gegen das Wechselmodell erkennbar.";
-  }
-
+  if (/(veto|ablehnen.*elternteil|verweigern.*kommunikation)/i.test(lower)) return "Kritisch: Impliziert Kommunikationssabotage als ‚Veto‘ gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).";
+  if (/(kindeswohl|kindeswohl-argument|wohl des kindes)/i.test(lower)) return "Kritisch: Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente‘ – impliziert selektive Darstellung, Grenze zu § 153 StGB.";
+  if (/(triftige gründe|abänderung|änderung.*modell)/i.test(lower)) return "Kritisch: Fördert Abänderung durch ‚triftige Gründe‘ – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).";
+  if (/(ausweg|streit|distanz|eskalation|konflikt.*inszenierung|falschaussage|gutachter.*beeinflussen|kindeswille.*vorbereiten)/i.test(lower)) return "Kritisch: Explizite ‚Auswege‘ zur Verhinderung durch Streit und Distanz – direkte Anleitung zu Eskalation, strafbar als Beihilfe (§ 27 StGB).";
+  if (/(indirekt|versteckt|strategie|trick|täuschung|entfremdung|prozessbetrug)/i.test(lower)) return "Kritisch: Indirekte Strategie gegen das Wechselmodell erkennbar.";
   return "Kritisch: Archivierte oder mediale Quelle zu Strategien gegen das Wechselmodell (Entfremdung/Täuschung).";
 }
 
@@ -38,7 +24,6 @@ function kuerzeAuszug(text) {
   return text.length > max ? text.trim().substring(0, max) + "…" : text.trim();
 }
 
-// ───── Suchanfragen ─────
 const ZUSATZSUCHEN = [
   '"wechselmodell verhindern" OR "doppelresidenz sabotieren" OR "kindeswille vorbereiten" site:web.archive.org',
   '"wechselmodell verhindern" OR "gutachter beeinflussen" OR "falschaussage sorgerecht" lang:de',
@@ -48,10 +33,7 @@ const ZUSATZSUCHEN = [
 
 async function suche(query) {
   try {
-    const res = await axios.post('https://google.serper.dev/search', {
-      q: query,
-      gl: 'de', hl: 'de', num: 12
-    }, {
+    const res = await axios.post('https://google.serper.dev/search', { q: query, gl: 'de', hl: 'de', num: 12 }, {
       headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' }
     });
     return res.data.organic || [];
@@ -82,21 +64,16 @@ async function main() {
       if (!url) continue;
 
       const snippet = (item.snippet || item.title || '');
-      const istRelevant = url.includes('archive.org') ||
-                          url.includes('openjur') || url.includes('juris.de') ||
-                          url.includes('spiegel.de') || url.includes('sueddeutsche.de') ||
-                          url.includes('faz.net') || url.includes('welt.de') ||
+      const istRelevant = url.includes('archive.org') || url.includes('openjur') || url.includes('juris.de') ||
+                          url.includes('spiegel.de') || url.includes('sueddeutsche.de') || url.includes('faz.net') || url.includes('welt.de') ||
                           Math.random() > 0.35;
 
       if (!istRelevant) continue;
 
-      const grund = bestimmeKritischGrund(snippet + ' ' + item.title);
-      const titel = item.title.length > 110 ? item.title.substring(0, 107) + '...' : item.title;
-
       const li = doc.createElement('li');
       li.innerHTML = `
-        <div class="critique">${grund}</div>
-        <strong>${titel}</strong><br>
+        <div class="critique">${bestimmeKritischGrund(snippet + ' ' + (item.title || ''))}</div>
+        <strong>${(item.title || 'Kein Titel').substring(0, 110)}${(item.title || '').length > 110 ? '...' : ''}</strong><br>
         <a href="${url}" target="_blank">Zur Quelle öffnen</a>
         <div class="excerpt">Auszug: ${kuerzeAuszug(snippet)}</div>
       `;
@@ -112,7 +89,19 @@ async function main() {
 
   const gesamtAnzahl = ul.children.length;
 
-  // ───── Pagination (identisch mit deiner alten Logik, nur leicht bereinigt) ─────
+  // --- Alle alten "Weitere Ergebnisse"-Links löschen ---
+  doc.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement.remove());
+
+  // --- Eigene bekannte_urls.json aktualisieren ---
+  let bekannteUrls = [];
+  try { bekannteUrls = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]'); } catch {}
+  Array.from(ul.children).forEach(li => {
+    const link = li.querySelector('a')?.getAttribute('href');
+    if (link && !bekannteUrls.includes(link)) bekannteUrls.push(link);
+  });
+  fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannteUrls, null, 2));
+
+  // --- Pagination (genau wie update-search) ---
   if (gesamtAnzahl > MAX_PER_PAGE) {
     const seite = Math.ceil(gesamtAnzahl / MAX_PER_PAGE);
     const start = (seite - 1) * MAX_PER_PAGE;
@@ -141,17 +130,13 @@ async function main() {
     doc.querySelector('.additional-sources').appendChild(mehrLink);
   }
 
-  // ───── Future-Updates-Block aktualisieren (wie in update-search.js) ─────
+  // --- Timestamp ---
   const jetzt = new Date();
   const datum = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const uhr = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
   let futureDiv = doc.querySelector('.future-updates');
-  if (!futureDiv) {
-    futureDiv = doc.createElement('div');
-    futureDiv.className = 'future-updates';
-    doc.body.appendChild(futureDiv);
-  }
+  if (!futureDiv) { futureDiv = doc.createElement('div'); futureDiv.className = 'future-updates'; doc.body.appendChild(futureDiv); }
 
   futureDiv.innerHTML = `
     <h2>Automatische Aktualisierung durch KI</h2>
@@ -160,8 +145,7 @@ async function main() {
   `;
 
   fs.writeFileSync(INDEX_FILE, '\ufeff' + dom.serialize());
-  console.log(`extra-search fertig → ${neueEintraege} neue Einträge hinzugefügt | Gesamt: ${gesamtAnzahl}`);
+  console.log(`extra-search fertig → ${neueEintraege} neue | Gesamt: ${gesamtAnzahl}`);
 }
 
-// ───── START ─────
 main().catch(console.error);
