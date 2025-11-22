@@ -1,12 +1,17 @@
-// extra-search.js – 100% unabhängig, läuft auch solo einwandfrei
-
 import fs from 'fs';
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
+import { suche } from './search-apis.js';
 
-const SERPER_KEY = process.env.SERPER_KEY;
 const INDEX_FILE = 'index.html';
 const MAX_PER_PAGE = 100;
+
+const ZUSATZSUCHEN = [
+  '"wechselmodell verhindern" OR "doppelresidenz sabotieren" OR "kindeswille vorbereiten" site:web.archive.org',
+  '"wechselmodell verhindern" OR "gutachter beeinflussen" OR "falschaussage sorgerecht" lang:de',
+  '"anwältin verurteilt" OR "prozessbetrug familienrecht" OR "kindesentzug anwalt" site:openjur.de OR site:juris.de',
+  '"anwältin skandal" OR "falschvorwürfe scheidung" OR "parental alienation anwalt" site:spiegel.de OR site:sueddeutsche.de OR site:faz.net OR site:welt.de'
+];
 
 function bestimmeKritischGrund(text = '') {
   const lower = text.toLowerCase();
@@ -24,25 +29,6 @@ function kuerzeAuszug(text) {
   return text.length > max ? text.trim().substring(0, max) + "…" : text.trim();
 }
 
-const ZUSATZSUCHEN = [
-  '"wechselmodell verhindern" OR "doppelresidenz sabotieren" OR "kindeswille vorbereiten" site:web.archive.org',
-  '"wechselmodell verhindern" OR "gutachter beeinflussen" OR "falschaussage sorgerecht" lang:de',
-  '"anwältin verurteilt" OR "prozessbetrug familienrecht" OR "kindesentzug anwalt" site:openjur.de OR site:juris.de',
-  '"anwältin skandal" OR "falschvorwürfe scheidung" OR "parental alienation anwalt" site:spiegel.de OR site:sueddeutsche.de OR site:faz.net OR site:welt.de'
-];
-
-async function suche(query) {
-  try {
-    const res = await axios.post('https://google.serper.dev/search', { q: query, gl: 'de', hl: 'de', num: 12 }, {
-      headers: { 'X-API-KEY': SERPER_KEY, 'Content-Type': 'application/json' }
-    });
-    return res.data.organic || [];
-  } catch (e) {
-    console.log('Serper-Fehler (extra-search):', e.message);
-    return [];
-  }
-}
-
 async function main() {
   console.log('=== Starte erweiterte Suche (extra-search.js) ===');
 
@@ -58,12 +44,12 @@ async function main() {
   const tempDiv = doc.createElement('div');
 
   for (const query of ZUSATZSUCHEN) {
-    const ergebnisse = await suche(query);
+    const ergebnisse = await suche(query, 12);
     for (const item of ergebnisse) {
       const url = item.link?.trim();
       if (!url) continue;
 
-      const snippet = (item.snippet || item.title || '');
+      const snippet = item.snippet || item.title || '';
       const istRelevant = url.includes('archive.org') || url.includes('openjur') || url.includes('juris.de') ||
                           url.includes('spiegel.de') || url.includes('sueddeutsche.de') || url.includes('faz.net') || url.includes('welt.de') ||
                           Math.random() > 0.35;
@@ -72,7 +58,7 @@ async function main() {
 
       const li = doc.createElement('li');
       li.innerHTML = `
-        <div class="critique">${bestimmeKritischGrund(snippet + ' ' + (item.title || ''))}</div>
+        <div class="critique">${bestimmeKritischGrund(snippet + ' ' + item.title)}</div>
         <strong>${(item.title || 'Kein Titel').substring(0, 110)}${(item.title || '').length > 110 ? '...' : ''}</strong><br>
         <a href="${url}" target="_blank">Zur Quelle öffnen</a>
         <div class="excerpt">Auszug: ${kuerzeAuszug(snippet)}</div>
@@ -89,10 +75,6 @@ async function main() {
 
   const gesamtAnzahl = ul.children.length;
 
-  // --- Alle alten "Weitere Ergebnisse"-Links löschen ---
-  doc.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement.remove());
-
-  // --- Eigene bekannte_urls.json aktualisieren ---
   let bekannteUrls = [];
   try { bekannteUrls = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]'); } catch {}
   Array.from(ul.children).forEach(li => {
@@ -101,15 +83,16 @@ async function main() {
   });
   fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannteUrls, null, 2));
 
-  // --- Pagination (genau wie update-search) ---
+  doc.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement?.remove());
+
   if (gesamtAnzahl > MAX_PER_PAGE) {
     const seite = Math.ceil(gesamtAnzahl / MAX_PER_PAGE);
     const start = (seite - 1) * MAX_PER_PAGE;
     const ueberzaehlige = Array.from(ul.children).slice(start);
 
     const seitenDatei = seite === 2 ? 'quellen-seite-2.html' : `quellen-seite-${seite}.html`;
-    let neueSeiteHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Beratungen – Seite ${seite}</title>`);
-    const dom2 = new JSDOM(neueSeiteHTML);
+    let neueHTML = html.replace(/<title>.*<\/title>/, `<title>Illegale Beratungen – Seite ${seite}</title>`);
+    const dom2 = new JSDOM(neueHTML);
     const ul2 = dom2.window.document.querySelector('.additional-sources ul');
     ul2.innerHTML = '';
     ueberzaehlige.forEach(li => ul2.appendChild(li.cloneNode(true)));
@@ -130,7 +113,6 @@ async function main() {
     doc.querySelector('.additional-sources').appendChild(mehrLink);
   }
 
-  // --- Timestamp ---
   const jetzt = new Date();
   const datum = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const uhr = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
