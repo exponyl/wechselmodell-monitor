@@ -91,7 +91,7 @@ async function main() {
       const auszug = kuerzeAuszug(inhalt.text);
 
       const li = doc.createElement('li');
-      li.innerHTML = `${kritik} <a href="${url}" target="_blank">Zur Webseite</a> Auszug: ${auszug}`;
+      li.innerHTML = `${kritik} <a href="${url}" target="_blank" rel="noopener">Zur Webseite</a> Auszug: ${auszug}`;
 
       liste.appendChild(li);
       bekannteUrls.push(url);
@@ -103,9 +103,9 @@ async function main() {
 
   const gesamtAnzahl = liste.children.length;
 
-  // Robuster Remove: alte echte Links + alte Markdown-Zeilen löschen
+  // Alle alten Links (echte + Markdown-Reste) entfernen
   doc.querySelectorAll('.additional-sources > p').forEach(p => {
-    if (p.querySelector('a[href^="quellen-seite"]') || p.textContent.includes('Weitere Ergebnisse')) {
+    if (p.innerHTML.includes('quellen-seite') || p.textContent.includes('Weitere Ergebnisse') || p.textContent.includes('Seite ')) {
       p.remove();
     }
   });
@@ -124,22 +124,22 @@ async function main() {
       ul2.innerHTML = '';
       seitenItems.forEach(li => ul2.appendChild(li.cloneNode(true)));
 
-      // auch auf Subseiten alte Links/Markdown entfernen
+      // Alte Navigation/Links entfernen
       dom2.window.document.querySelectorAll('.additional-sources > p').forEach(p => {
-        if (p.querySelector('a[href^="quellen-seite"]') || p.textContent.includes('Weitere Ergebnisse') || p.textContent.includes('Seite ')) p.remove();
+        if (p.innerHTML.includes('quellen-seite') || p.textContent.includes('Weitere Ergebnisse') || p.textContent.includes('Seite ')) p.remove();
       });
 
-      // ECHTE Navigation mit echten <a>-Tags
+      // Echte klickbare Navigation
       const nav = dom2.window.document.createElement('p');
       nav.style.textAlign = 'center';
       nav.style.fontSize = '1.1em';
       nav.style.margin = '40px 0';
 
-      if (s > 2) { const a = dom2.window.document.createElement('a'); a.href = `quellen-seite-${s-1}.html`; a.textContent = `Seite ${s-1}`; nav.appendChild(a); nav.appendChild(dom2.window.document.createTextNode(' | ')); }
+      if (s > 1) nav.appendChild(dom2.window.document.createTextNode(' '));
       if (s > 1) { const a = dom2.window.document.createElement('a'); a.href = 'index.html'; a.textContent = 'Seite 1'; nav.appendChild(a); nav.appendChild(dom2.window.document.createTextNode(' | ')); }
-      const aktuell = dom2.window.document.createElement('span'); aktuell.textContent = `Seite ${s}`; nav.appendChild(aktuell);
-      if (s < seite) {
-        const a = dom2.window.document.createElement('a'); a.href = `quellen-seite-${s+1}.html`; a.textContent = ` Seite ${s+1}`; nav.appendChild(dom2.window.document.createTextNode(' | ')); nav.appendChild(a); }
+      if (s > 2) { const a = dom2.window.document.createElement('a'); a.href = `quellen-seite-${s-1}.html`; a.textContent = `Seite ${s-1}`; nav.appendChild(a); nav.appendChild(dom2.window.document.createTextNode(' | ')); }
+      const span = dom2.window.document.createElement('span'); span.textContent = `Seite ${s}`; nav.appendChild(span);
+      if (s < seite) { nav.appendChild(dom2.window.document.createTextNode(' | ')); const a = dom2.window.document.createElement('a'); a.href = `quellen-seite-${s+1}.html`; a.textContent = `Seite ${s+1}`; nav.appendChild(a); }
 
       dom2.window.document.querySelector('.additional-sources').appendChild(nav);
 
@@ -148,7 +148,14 @@ async function main() {
       const jetzt = new Date();
       const datum = jetzt.toLocaleDateString('de-DE');
       const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-      let futureDiv2 = dom2.window.document.querySelector('.future-updates') || dom2.window.document.body.appendChild(dom2.window.document.createElement('div')).className = 'future-updates';
+
+      let futureDiv2 = dom2.window.document.querySelector('.future-updates');
+      if (!futureDiv2) {
+        futureDiv2 = dom2.window.document.createElement('div');
+        futureDiv2.className = 'future-updates';
+        dom2.window.document.body.appendChild(futureDiv2);
+      }
+
       futureDiv2.innerHTML = `
 
 ## Automatische Aktualisierung durch KI
@@ -162,17 +169,16 @@ Die KI durchsucht täglich Google, Wayback Machine, Gerichtsurteile und Medien.
       fs.writeFileSync(seitenDatei, '\ufeff' + dom2.serialize());
     }
 
-    // Letzte 100 behalten
     while (liste.children.length > MAX_PER_PAGE) liste.removeChild(liste.lastChild);
 
-    // ECHTER "Weitere Ergebnisse"-Link (klickbar!)
+    // ECHTER klickbarer "Weitere Ergebnisse"-Link
     const mehrLink = doc.createElement('p');
     mehrLink.style.textAlign = 'center';
     mehrLink.style.margin = '50px 0';
     const a = doc.createElement('a');
     a.href = 'quellen-seite-2.html';
-    a.textContent = `Weitere Ergebnisse (Seite 2 ff.) – insgesamt ${gesamtAnzahl} Funde`;
-    a.style.fontSize = '1.1em';
+    a.innerHTML = `<strong>Weitere Ergebnisse (Seite 2 ff.) – insgesamt ${gesamtAnzahl} Funde</strong>`;
+    a.style.fontSize = '1.15em';
     mehrLink.appendChild(a);
     doc.querySelector('.additional-sources').appendChild(mehrLink);
   }
@@ -183,7 +189,13 @@ Die KI durchsucht täglich Google, Wayback Machine, Gerichtsurteile und Medien.
   const datum = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
-  let futureDiv = doc.querySelector('.future-updates') || doc.body.appendChild(doc.createElement('div')).className = 'future-updates';
+  let futureDiv = doc.querySelector('.future-updates');
+  if (!futureDiv) {
+    futureDiv = doc.createElement('div');
+    futureDiv.className = 'future-updates';
+    doc.body.appendChild(futureDiv);
+  }
+
   futureDiv.innerHTML = `
 
 ## Automatische Aktualisierung durch KI
