@@ -47,30 +47,17 @@ async function holeInhalt(url) {
   }
 }
 
-// NEU: Cache-Killer einfügen
 function addNoCacheHeaders(dom) {
   const head = dom.window.document.head;
-  let meta = head.querySelector('meta[http-equiv="Cache-Control"]');
-  if (!meta) {
-    meta = dom.window.document.createElement('meta');
-    meta.setAttribute('http-equiv', 'Cache-Control');
-    meta.setAttribute('content', 'no-cache, no-store, must-revalidate, max-age=0');
-    head.appendChild(meta);
-  }
-  let pragma = head.querySelector('meta[http-equiv="Pragma"]');
-  if (!pragma) {
-    pragma = dom.window.document.createElement('meta');
-    pragma.setAttribute('http-equiv', 'Pragma');
-    pragma.setAttribute('content', 'no-cache');
-    head.appendChild(pragma);
-  }
-  let expires = head.querySelector('meta[http-equiv="Expires"]');
-  if (!expires) {
-    expires = dom.window.document.createElement('meta');
-    expires.setAttribute('http-equiv', 'Expires');
-    expires.setAttribute('content', '0');
-    head.appendChild(expires);
-  }
+  ['Cache-Control', 'Pragma', 'Expires'].forEach((h, i) => {
+    let meta = head.querySelector(`meta[http-equiv="${h}"]`);
+    if (!meta) {
+      meta = dom.window.document.createElement('meta');
+      meta.httpEquiv = h;
+      meta.content = i === 0 ? 'no-cache, no-store, must-revalidate, max-age=0' : i === 1 ? 'no-cache' : '0';
+      head.appendChild(meta);
+    }
+  });
 }
 
 async function main() {
@@ -104,9 +91,7 @@ async function main() {
       const auszug = kuerzeAuszug(inhalt.text);
 
       const li = doc.createElement('li');
-      li.innerHTML = `
-${kritik} [Zur Webseite](${url}) Auszug: ${auszug}
-`;
+      li.innerHTML = `${kritik} <a href="${url}" target="_blank">Zur Webseite</a> Auszug: ${auszug}`;
 
       liste.appendChild(li);
       bekannteUrls.push(url);
@@ -118,7 +103,12 @@ ${kritik} [Zur Webseite](${url}) Auszug: ${auszug}
 
   const gesamtAnzahl = liste.children.length;
 
-  doc.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement.remove());
+  // Robuster Remove: alte echte Links + alte Markdown-Zeilen löschen
+  doc.querySelectorAll('.additional-sources > p').forEach(p => {
+    if (p.querySelector('a[href^="quellen-seite"]') || p.textContent.includes('Weitere Ergebnisse')) {
+      p.remove();
+    }
+  });
 
   if (gesamtAnzahl > MAX_PER_PAGE) {
     const seite = Math.ceil(gesamtAnzahl / MAX_PER_PAGE);
@@ -134,30 +124,31 @@ ${kritik} [Zur Webseite](${url}) Auszug: ${auszug}
       ul2.innerHTML = '';
       seitenItems.forEach(li => ul2.appendChild(li.cloneNode(true)));
 
-      // === FIX: Alten "Weitere Ergebnisse"-Link aus dem Template entfernen ===
-      dom2.window.document.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement.remove());
+      // auch auf Subseiten alte Links/Markdown entfernen
+      dom2.window.document.querySelectorAll('.additional-sources > p').forEach(p => {
+        if (p.querySelector('a[href^="quellen-seite"]') || p.textContent.includes('Weitere Ergebnisse') || p.textContent.includes('Seite ')) p.remove();
+      });
 
-      // Navigation
-      const nav = dom2.window.document.createElement('div');
-      nav.style.textAlign = 'center'; nav.style.margin = '50px 0';
-      let navHTML = `<p style="text-align:center; font-size:1.1em; margin:40px 0;">`;
-      if (s > 1) navHTML += `[Seite 1](index.html) | `;
-      if (s > 2) navHTML += `[Seite ${s-1}](quellen-seite-${s-1}.html) | `;
-      navHTML += `Seite ${s}`;
-      if (s < seite) navHTML += ` | [Seite ${s+1}](quellen-seite-${s+1}.html)`;
-      navHTML += `</p>`;
-      nav.innerHTML = navHTML;
+      // ECHTE Navigation mit echten <a>-Tags
+      const nav = dom2.window.document.createElement('p');
+      nav.style.textAlign = 'center';
+      nav.style.fontSize = '1.1em';
+      nav.style.margin = '40px 0';
+
+      if (s > 2) { const a = dom2.window.document.createElement('a'); a.href = `quellen-seite-${s-1}.html`; a.textContent = `Seite ${s-1}`; nav.appendChild(a); nav.appendChild(dom2.window.document.createTextNode(' | ')); }
+      if (s > 1) { const a = dom2.window.document.createElement('a'); a.href = 'index.html'; a.textContent = 'Seite 1'; nav.appendChild(a); nav.appendChild(dom2.window.document.createTextNode(' | ')); }
+      const aktuell = dom2.window.document.createElement('span'); aktuell.textContent = `Seite ${s}`; nav.appendChild(aktuell);
+      if (s < seite) {
+        const a = dom2.window.document.createElement('a'); a.href = `quellen-seite-${s+1}.html`; a.textContent = ` Seite ${s+1}`; nav.appendChild(dom2.window.document.createTextNode(' | ')); nav.appendChild(a); }
+
       dom2.window.document.querySelector('.additional-sources').appendChild(nav);
 
-      // Cache-Killer auch auf Subseiten
       addNoCacheHeaders(dom2);
 
-      // Timestamp
       const jetzt = new Date();
       const datum = jetzt.toLocaleDateString('de-DE');
       const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
-      let futureDiv2 = dom2.window.document.querySelector('.future-updates');
-      if (!futureDiv2) { futureDiv2 = dom2.window.document.createElement('div'); futureDiv2.className = 'future-updates'; dom2.window.document.body.appendChild(futureDiv2); }
+      let futureDiv2 = dom2.window.document.querySelector('.future-updates') || dom2.window.document.body.appendChild(dom2.window.document.createElement('div')).className = 'future-updates';
       futureDiv2.innerHTML = `
 
 ## Automatische Aktualisierung durch KI
@@ -171,30 +162,28 @@ Die KI durchsucht täglich Google, Wayback Machine, Gerichtsurteile und Medien.
       fs.writeFileSync(seitenDatei, '\ufeff' + dom2.serialize());
     }
 
+    // Letzte 100 behalten
     while (liste.children.length > MAX_PER_PAGE) liste.removeChild(liste.lastChild);
 
+    // ECHTER "Weitere Ergebnisse"-Link (klickbar!)
     const mehrLink = doc.createElement('p');
-    mehrLink.style.textAlign = 'center'; mehrLink.style.margin = '50px 0';
-    mehrLink.innerHTML = `
-
-[
-Weitere Ergebnisse (Seite 2 ff.) – insgesamt ${gesamtAnzahl} Funde
-](quellen-seite-2.html)
-
-`;
+    mehrLink.style.textAlign = 'center';
+    mehrLink.style.margin = '50px 0';
+    const a = doc.createElement('a');
+    a.href = 'quellen-seite-2.html';
+    a.textContent = `Weitere Ergebnisse (Seite 2 ff.) – insgesamt ${gesamtAnzahl} Funde`;
+    a.style.fontSize = '1.1em';
+    mehrLink.appendChild(a);
     doc.querySelector('.additional-sources').appendChild(mehrLink);
   }
 
-  // Cache-Killer auf Hauptseite
   addNoCacheHeaders(dom);
 
-  // Timestamp Hauptseite
   const jetzt = new Date();
   const datum = jetzt.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
   const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
 
-  let futureDiv = doc.querySelector('.future-updates');
-  if (!futureDiv) { futureDiv = doc.createElement('div'); futureDiv.className = 'future-updates'; doc.body.appendChild(futureDiv); }
+  let futureDiv = doc.querySelector('.future-updates') || doc.body.appendChild(doc.createElement('div')).className = 'future-updates';
   futureDiv.innerHTML = `
 
 ## Automatische Aktualisierung durch KI
