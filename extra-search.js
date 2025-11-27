@@ -31,12 +31,12 @@ const ZUSATZSUCHEN = [
 function bestimmeKritischGrund(text = '') {
   const lower = text.toLowerCase();
   const rot = '<span style="color:#c00;font-weight:bold">Kritisch:</span> ';
-  if (/(veto|ablehnen.*elternteil|verweigern.*kommunikation)/i.test(lower)) return `${rot} Impliziert Kommunikationssabotage als ‚Veto' gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).`;
-  if (/(kindeswohl|kindeswohl-argument|wohl des kindes)/i.test(lower)) return `${rot} Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente' – impliziert selektive Darstellung, Grenze zu § 153 StGB.`;
-  if (/(triftige gründe|abänderung|änderung.*modell)/i.test(lower)) return `${rot} Fördert Abänderung durch ‚triftige Gründe' – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).`;
-  if (/(ausweg|streit|distanz|eskalation|konflikt.*inszenierung|falschaussage|gutachter.*(täuschen|beeinflussen|manipulieren)|kindeswille.*(vorbereiten|manipulieren)|kind.*aufhetzen|umgang.*(boykott|sabotieren)|prozessbetrug|lügen.*gericht)/i.test(lower)) return `${rot} Explizite Anleitung zu Prozessbetrug, Gutachtertäuschung, Kindeswillensmanipulation oder Umgangssabotage – strafbar als Beihilfe (§§ 153, 235, 27 StGB).`;
-  if (/(indirekt|versteckt|strategie|trick|täuschung|entfremdung)/i.test(lower)) return `${rot} Indirekte Strategie gegen das Wechselmodell / Elternentfremdung erkennbar.`;
-  return `${rot} Quelle zu Manipulations- oder Sabotagestrategien im Familienrecht (Archiv/Medium/Gericht).`;
+  if (/(veto|ablehnen.*elternteil|verweigern.*kommunikation)/i.test(lower)) return `${rot}Impliziert Kommunikationssabotage als ‚Veto' gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).`;
+  if (/(kindeswohl|kindeswohl-argument|wohl des kindes)/i.test(lower)) return `${rot}Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente' – impliziert selektive Darstellung, Grenze zu § 153 StGB.`;
+  if (/(triftige gründe|abänderung|änderung.*modell)/i.test(lower)) return `${rot}Fördert Abänderung durch ‚triftige Gründe' – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).`;
+  if (/(ausweg|streit|distanz|eskalation|konflikt.*inszenierung|falschaussage|gutachter.*(täuschen|beeinflussen|manipulieren)|kindeswille.*(vorbereiten|manipulieren)|kind.*aufhetzen|umgang.*(boykott|sabotieren)|prozessbetrug|lügen.*gericht)/i.test(lower)) return `${rot}Explizite Anleitung zu Prozessbetrug, Gutachtertäuschung, Kindeswillensmanipulation oder Umgangssabotage – strafbar als Beihilfe (§§ 153, 235, 27 StGB).`;
+  if (/(indirekt|versteckt|strategie|trick|täuschung|entfremdung)/i.test(lower)) return `${rot}Indirekte Strategie gegen das Wechselmodell / Elternentfremdung erkennbar.`;
+  return `${rot}Quelle zu Manipulations- oder Sabotagestrategien im Familienrecht (Archiv/Medium/Gericht).`;
 }
 
 function kuerzeAuszug(text) {
@@ -56,6 +56,13 @@ function addNoCacheHeaders(dom) {
       head.appendChild(meta);
     }
   });
+}
+
+// Strenger Relevanzfilter – Zufall komplett raus, nur harte Keywords
+function istStrengRelevant(snippet, url) {
+  const lower = (snippet + url).toLowerCase();
+  const mustHave = /wechselmodell|doppelresidenz|residenzmodell|gutachter|kindeswille|kindeswohl|aufhetzen|entfremdung|umgang|sabotage|sabotieren|verhindern|prozessbetrug|falschaussage|manipulation|manipulieren|täuschen|boykott|lügen.*gericht|kommunikation.*verweigern/i;
+  return mustHave.test(lower);
 }
 
 async function main() {
@@ -80,13 +87,9 @@ async function main() {
       if (!url) continue;
 
       const snippet = (item.snippet || item.title || '');
-      const istRelevant = url.includes('archive.org') || url.includes('openjur') || url.includes('juris.de') ||
-                          url.includes('spiegel.de') || url.includes('sueddeutsche.de') || url.includes('faz.net') || url.includes('welt.de') ||
-                          snippet.toLowerCase().includes('wechselmodell') || snippet.toLowerCase().includes('gutachter') || 
-                          snippet.toLowerCase().includes('kindeswille') || snippet.toLowerCase().includes('aufhetzen') ||
-                          Math.random() > 0.25;
-
-      if (!istRelevant) continue;
+      
+      // NUR wenn streng relevant → rein
+      if (!istStrengRelevant(snippet, url)) continue;
 
       const grund = bestimmeKritischGrund(snippet + ' ' + (item.title || ''));
       const li = doc.createElement('li');
