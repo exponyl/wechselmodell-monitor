@@ -7,20 +7,36 @@ const INDEX_FILE = 'index.html';
 const MAX_PER_PAGE = 100;
 
 const ZUSATZSUCHEN = [
-  '"wechselmodell verhindern" OR "doppelresidenz sabotieren" OR "kindeswille vorbereiten" site:web.archive.org',
-  '"wechselmodell verhindern" OR "gutachter beeinflussen" OR "falschaussage sorgerecht" lang:de',
-  '"anwältin verurteilt" OR "prozessbetrug familienrecht" OR "kindesentzug anwalt" site:openjur.de OR site:juris.de',
-  '"anwältin skandal" OR "falschvorwürfe scheidung" OR "parental alienation anwalt" site:spiegel.de OR site:sueddeutsche.de OR site:faz.net OR site:welt.de'
+  '"wechselmodell verhindern" OR "wechselmodell sabotieren" OR "doppelresidenz verhindern" site:web.archive.org',
+  '"kindeswille vorbereiten" OR "kindeswille manipulieren" OR "kind aufhetzen" site:web.archive.org',
+  '"gutachter täuschen" OR "gutachter beeinflussen" OR "gutachter manipulieren" site:web.archive.org',
+  '"umgang boykott" OR "umgang sabotieren" OR "kontaktabbruch tipps" site:web.archive.org',
+
+  '"wechselmodell" OR "doppelresidenz" OR "prozessbetrug" OR "falschaussage" site:openjur.de',
+  '"anwältin verurteilt" OR "kindesentzug anwalt" OR "falschvorwürfe" site:juris.de',
+
+  '"wechselmodell" OR "elternteil täuschen" OR "falschvorwürfe" OR "skandal" site:spiegel.de',
+  '"wechselmodell" OR "anwältin" OR "prozessbetrug" OR "kindesentzug" site:sueddeutsche.de',
+  '"wechselmodell" OR "elternentfremdung" OR "falschaussage" site:faz.net',
+  '"wechselmodell" OR "vater diskriminierung" OR "anwalt skandal" site:welt.de',
+
+  '"gutachter täuschen" OR "gutachter beeinflussen" OR "gutachter manipulieren" familienrecht',
+  '"kindeswille vorbereiten" OR "kindeswille manipulieren" OR "kind gegen vater aufhetzen"',
+  '"kind aufhetzen" OR "kind gegen elternteil" OR "elternentfremdung tipps"',
+  '"umgangsboykott tipps" OR "umgang sabotieren" OR "vater kind kontakt verhindern"',
+  '"falschvorwürfe erfinden" OR "prozessbetrug scheidung" OR "lügen vor gericht"',
+  '"kommunikation verweigern wechselmodell" OR "nachrichten blockieren sorgerecht" OR "appartementmethode"'
 ];
 
 function bestimmeKritischGrund(text = '') {
   const lower = text.toLowerCase();
-  if (/(veto|ablehnen.*elternteil|verweigern.*kommunikation)/i.test(lower)) return "Kritisch: Impliziert Kommunikationssabotage als ‚Veto' gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).";
-  if (/(kindeswohl|kindeswohl-argument|wohl des kindes)/i.test(lower)) return "Kritisch: Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente' – impliziert selektive Darstellung, Grenze zu § 153 StGB.";
-  if (/(triftige gründe|abänderung|änderung.*modell)/i.test(lower)) return "Kritisch: Fördert Abänderung durch ‚triftige Gründe' – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).";
-  if (/(ausweg|streit|distanz|eskalation|konflikt.*inszenierung|falschaussage|gutachter.*beeinflussen|kindeswille.*vorbereiten)/i.test(lower)) return "Kritisch: Explizite ‚Auswege' zur Verhinderung durch Streit und Distanz – direkte Anleitung zu Eskalation, strafbar als Beihilfe (§ 27 StGB).";
-  if (/(indirekt|versteckt|strategie|trick|täuschung|entfremdung|prozessbetrug)/i.test(lower)) return "Kritisch: Indirekte Strategie gegen das Wechselmodell erkennbar.";
-  return "Kritisch: Archivierte oder mediale Quelle zu Strategien gegen das Wechselmodell (Entfremdung/Täuschung).";
+  const rot = '<span style="color:#c00;font-weight:bold">Kritisch:</span> ';
+  if (/(veto|ablehnen.*elternteil|verweigern.*kommunikation)/i.test(lower)) return `${rot} Impliziert Kommunikationssabotage als ‚Veto' gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).`;
+  if (/(kindeswohl|kindeswohl-argument|wohl des kindes)/i.test(lower)) return `${rot} Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente' – impliziert selektive Darstellung, Grenze zu § 153 StGB.`;
+  if (/(triftige gründe|abänderung|änderung.*modell)/i.test(lower)) return `${rot} Fördert Abänderung durch ‚triftige Gründe' – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).`;
+  if (/(ausweg|streit|distanz|eskalation|konflikt.*inszenierung|falschaussage|gutachter.*(täuschen|beeinflussen|manipulieren)|kindeswille.*(vorbereiten|manipulieren)|kind.*aufhetzen|umgang.*(boykott|sabotieren)|prozessbetrug|lügen.*gericht)/i.test(lower)) return `${rot} Explizite Anleitung zu Prozessbetrug, Gutachtertäuschung, Kindeswillensmanipulation oder Umgangssabotage – strafbar als Beihilfe (§§ 153, 235, 27 StGB).`;
+  if (/(indirekt|versteckt|strategie|trick|täuschung|entfremdung)/i.test(lower)) return `${rot} Indirekte Strategie gegen das Wechselmodell / Elternentfremdung erkennbar.`;
+  return `${rot} Quelle zu Manipulations- oder Sabotagestrategien im Familienrecht (Archiv/Medium/Gericht).`;
 }
 
 function kuerzeAuszug(text) {
@@ -58,7 +74,7 @@ async function main() {
 
   for (const query of ZUSATZSUCHEN) {
     console.log(`Extra-Suche nach: ${query}`);
-    const ergebnisse = await suche(query, 12);
+    const ergebnisse = await suche(query, 15);
     for (const item of ergebnisse) {
       const url = item.link?.trim();
       if (!url) continue;
@@ -66,13 +82,13 @@ async function main() {
       const snippet = (item.snippet || item.title || '');
       const istRelevant = url.includes('archive.org') || url.includes('openjur') || url.includes('juris.de') ||
                           url.includes('spiegel.de') || url.includes('sueddeutsche.de') || url.includes('faz.net') || url.includes('welt.de') ||
-                          Math.random() > 0.35;
+                          snippet.toLowerCase().includes('wechselmodell') || snippet.toLowerCase().includes('gutachter') || 
+                          snippet.toLowerCase().includes('kindeswille') || snippet.toLowerCase().includes('aufhetzen') ||
+                          Math.random() > 0.25;
 
       if (!istRelevant) continue;
 
       const grund = bestimmeKritischGrund(snippet + ' ' + (item.title || ''));
-      const titel = (item.title || 'Kein Titel').length > 110 ? (item.title || 'Kein Titel').substring(0, 107) + '...' : (item.title || 'Kein Titel');
-
       const li = doc.createElement('li');
       li.innerHTML = `${grund} <a href="${url}" target="_blank" rel="noopener">Zur Quelle öffnen</a> Auszug: ${kuerzeAuszug(snippet)}`;
 
@@ -88,7 +104,6 @@ async function main() {
 
   const gesamtAnzahl = ul.children.length;
 
-  // bekannte_urls.json aktualisieren
   let bekannteUrls = [];
   try { bekannteUrls = JSON.parse(fs.readFileSync('bekannte_urls.json', 'utf8') || '[]'); } catch {}
   let updated = false;
@@ -101,7 +116,6 @@ async function main() {
   });
   if (updated) fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannteUrls, null, 2));
 
-  // Alle alten Links/Markdown-Reste entfernen (robust)
   doc.querySelectorAll('.additional-sources > p').forEach(p => {
     if (p.innerHTML.includes('quellen-seite') || p.textContent.includes('Weitere Ergebnisse') || p.textContent.includes('Seite ')) {
       p.remove();
@@ -122,12 +136,10 @@ async function main() {
       ul2.innerHTML = '';
       seitenItems.forEach(li => ul2.appendChild(li.cloneNode(true)));
 
-      // Alte Navigation/Links entfernen
       dom2.window.document.querySelectorAll('.additional-sources > p').forEach(p => {
         if (p.innerHTML.includes('quellen-seite') || p.textContent.includes('Weitere Ergebnisse') || p.textContent.includes('Seite ')) p.remove();
       });
 
-      // Echte klickbare Navigation
       const nav = dom2.window.document.createElement('p');
       nav.style.textAlign = 'center';
       nav.style.fontSize = '1.1em';
@@ -168,7 +180,6 @@ Die KI durchsucht täglich Google, Wayback Machine, Gerichtsurteile und Medien.
 
     while (ul.children.length > MAX_PER_PAGE) ul.removeChild(ul.lastChild);
 
-    // ECHTER klickbarer "Weitere Ergebnisse"-Link
     const mehrLink = doc.createElement('p');
     mehrLink.style.textAlign = 'center';
     mehrLink.style.margin = '50px 0';
