@@ -36,13 +36,18 @@ function kuerzeAuszug(text) {
 
 async function holeInhalt(url) {
   try {
-    const { data } = await axios.get(url, { timeout: 15000 });
+    const { data } = await axios.get(url, {
+      timeout: 20000,
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0'
+      }
+    });
     const dom = new JSDOM(data, { url });
     const title = dom.window.document.querySelector('title')?.textContent.trim() || "Kein Titel";
     const bodyText = dom.window.document.body.textContent.replace(/\s+/g, ' ').trim();
     return { title, text: bodyText };
   } catch (err) {
-    console.log("Fehler beim Laden von", url);
+    console.log("Fehler beim Laden von", url, "– wird übersprungen");
     return null;
   }
 }
@@ -103,7 +108,6 @@ async function main() {
 
   const gesamtAnzahl = liste.children.length;
 
-  // Alle alten Links (echte + Markdown-Reste) entfernen
   doc.querySelectorAll('.additional-sources > p').forEach(p => {
     if (p.innerHTML.includes('quellen-seite') || p.textContent.includes('Weitere Ergebnisse') || p.textContent.includes('Seite ')) {
       p.remove();
@@ -124,18 +128,15 @@ async function main() {
       ul2.innerHTML = '';
       seitenItems.forEach(li => ul2.appendChild(li.cloneNode(true)));
 
-      // Alte Navigation/Links entfernen
       dom2.window.document.querySelectorAll('.additional-sources > p').forEach(p => {
         if (p.innerHTML.includes('quellen-seite') || p.textContent.includes('Weitere Ergebnisse') || p.textContent.includes('Seite ')) p.remove();
       });
 
-      // Echte klickbare Navigation
       const nav = dom2.window.document.createElement('p');
       nav.style.textAlign = 'center';
       nav.style.fontSize = '1.1em';
       nav.style.margin = '40px 0';
 
-      if (s > 1) nav.appendChild(dom2.window.document.createTextNode(' '));
       if (s > 1) { const a = dom2.window.document.createElement('a'); a.href = 'index.html'; a.textContent = 'Seite 1'; nav.appendChild(a); nav.appendChild(dom2.window.document.createTextNode(' | ')); }
       if (s > 2) { const a = dom2.window.document.createElement('a'); a.href = `quellen-seite-${s-1}.html`; a.textContent = `Seite ${s-1}`; nav.appendChild(a); nav.appendChild(dom2.window.document.createTextNode(' | ')); }
       const span = dom2.window.document.createElement('span'); span.textContent = `Seite ${s}`; nav.appendChild(span);
@@ -171,7 +172,6 @@ Die KI durchsucht täglich Google, Wayback Machine, Gerichtsurteile und Medien.
 
     while (liste.children.length > MAX_PER_PAGE) liste.removeChild(liste.lastChild);
 
-    // ECHTER klickbarer "Weitere Ergebnisse"-Link
     const mehrLink = doc.createElement('p');
     mehrLink.style.textAlign = 'center';
     mehrLink.style.margin = '50px 0';
