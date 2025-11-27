@@ -105,11 +105,8 @@ async function main() {
 
       const li = doc.createElement('li');
       li.innerHTML = `
-        <div class="critique">${kritik}</div>
-        <strong>${inhalt.title.substring(0, 120)}</strong><br>
-        <a href="${url}" target="_blank">Zur Webseite</a>
-        <div class="excerpt">Auszug: ${auszug}</div>
-      `;
+${kritik} [Zur Webseite](${url}) Auszug: ${auszug}
+`;
 
       liste.appendChild(li);
       bekannteUrls.push(url);
@@ -137,14 +134,17 @@ async function main() {
       ul2.innerHTML = '';
       seitenItems.forEach(li => ul2.appendChild(li.cloneNode(true)));
 
+      // === FIX: Alten "Weitere Ergebnisse"-Link aus dem Template entfernen ===
+      dom2.window.document.querySelectorAll('.additional-sources > p a[href^="quellen-seite"]').forEach(a => a.parentElement.remove());
+
       // Navigation
       const nav = dom2.window.document.createElement('div');
       nav.style.textAlign = 'center'; nav.style.margin = '50px 0';
-      let navHTML = `<p>`;
-      if (s > 1) navHTML += `<a href="index.html">Seite 1</a> | `;
-      if (s > 2) navHTML += `<a href="quellen-seite-${s-1}.html">Seite ${s-1}</a> | `;
+      let navHTML = `<p style="text-align:center; font-size:1.1em; margin:40px 0;">`;
+      if (s > 1) navHTML += `[Seite 1](index.html) | `;
+      if (s > 2) navHTML += `[Seite ${s-1}](quellen-seite-${s-1}.html) | `;
       navHTML += `Seite ${s}`;
-      if (s < seite) navHTML += ` | <a href="quellen-seite-${s+1}.html">Seite ${s+1}</a>`;
+      if (s < seite) navHTML += ` | [Seite ${s+1}](quellen-seite-${s+1}.html)`;
       navHTML += `</p>`;
       nav.innerHTML = navHTML;
       dom2.window.document.querySelector('.additional-sources').appendChild(nav);
@@ -158,7 +158,15 @@ async function main() {
       const uhrzeit = jetzt.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
       let futureDiv2 = dom2.window.document.querySelector('.future-updates');
       if (!futureDiv2) { futureDiv2 = dom2.window.document.createElement('div'); futureDiv2.className = 'future-updates'; dom2.window.document.body.appendChild(futureDiv2); }
-      futureDiv2.innerHTML = `<h2>Automatische Aktualisierung durch KI</h2><p><strong>Letzte Aktualisierung: ${datum} um ${uhrzeit} Uhr – Gesamt: ${gesamtAnzahl} Funde</strong></p><p>Die KI durchsucht täglich Google, Wayback Machine, Gerichtsurteile und Medien.</p>`;
+      futureDiv2.innerHTML = `
+
+## Automatische Aktualisierung durch KI
+
+**Letzte Aktualisierung: ${datum} um ${uhrzeit} Uhr – Gesamt: ${gesamtAnzahl} Funde**
+
+Die KI durchsucht täglich Google, Wayback Machine, Gerichtsurteile und Medien.
+
+`;
 
       fs.writeFileSync(seitenDatei, '\ufeff' + dom2.serialize());
     }
@@ -167,9 +175,13 @@ async function main() {
 
     const mehrLink = doc.createElement('p');
     mehrLink.style.textAlign = 'center'; mehrLink.style.margin = '50px 0';
-    mehrLink.innerHTML = `<a href="quellen-seite-2.html" style="font-size:1.4em;color:#d9534f;font-weight:bold;">
-      Weitere Ergebnisse (Seite 2 ff.) – insgesamt ${gesamtAnzahl} Funde
-    </a>`;
+    mehrLink.innerHTML = `
+
+[
+Weitere Ergebnisse (Seite 2 ff.) – insgesamt ${gesamtAnzahl} Funde
+](quellen-seite-2.html)
+
+`;
     doc.querySelector('.additional-sources').appendChild(mehrLink);
   }
 
@@ -183,7 +195,15 @@ async function main() {
 
   let futureDiv = doc.querySelector('.future-updates');
   if (!futureDiv) { futureDiv = doc.createElement('div'); futureDiv.className = 'future-updates'; doc.body.appendChild(futureDiv); }
-  futureDiv.innerHTML = `<h2>Automatische Aktualisierung durch KI</h2><p><strong>Letzte Aktualisierung: ${datum} um ${uhrzeit} Uhr – ${neuGefunden} neue Funde heute (Gesamt: ${gesamtAnzahl})</strong></p><p>Die KI durchsucht täglich Google, Wayback Machine, Gerichtsurteile und Medien.</p>`;
+  futureDiv.innerHTML = `
+
+## Automatische Aktualisierung durch KI
+
+**Letzte Aktualisierung: ${datum} um ${uhrzeit} Uhr – ${neuGefunden} neue Funde heute (Gesamt: ${gesamtAnzahl})**
+
+Die KI durchsucht täglich Google, Wayback Machine, Gerichtsurteile und Medien.
+
+`;
 
   fs.writeFileSync('index.html', '\ufeff' + dom.serialize());
   fs.writeFileSync('bekannte_urls.json', JSON.stringify(bekannteUrls, null, 2));
