@@ -20,12 +20,13 @@ const SUCHBEGRIFFE = [
 
 function bestimmeKritischGrund(text) {
   const lower = text.toLowerCase();
-  if (/(veto|ablehnen.*elternteil|verweigern.*kommunikation)/i.test(lower)) return "Kritisch: Impliziert Kommunikationssabotage als ‚Veto' gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).";
-  if (/(kindeswohl|kindeswohl-argument|wohl des kindes)/i.test(lower)) return "Kritisch: Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente' – impliziert selektive Darstellung, Grenze zu § 153 StGB.";
-  if (/(triftige gründe|abänderung|änderung.*modell)/i.test(lower)) return "Kritisch: Fördert Abänderung durch ‚triftige Gründe' – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).";
-  if (/(ausweg|streit|distanz|eskalation|konflikt.*inszenierung)/i.test(lower)) return "Kritisch: Explizite ‚Auswege' zur Verhinderung durch Streit und Distanz – direkte Anleitung zu Eskalation, strafbar als Beihilfe (§ 27 StGB).";
-  if (/(indirekt|versteckt|strategie|trick)/i.test(lower)) return "Kritisch: Indirekte Strategie gegen das Wechselmodell erkennbar.";
-  return "Kritisch: Direkte Anleitung zur Verhinderung des Wechselmodells";
+  const rot = '<span style="color:#c00;font-weight:bold">Kritisch:</span>';
+  if (/(veto|ablehnen.*elternteil|verweigern.*kommunikation)/i.test(lower)) return `${rot} Impliziert Kommunikationssabotage als ‚Veto' gegen Wechselmodell – fördert Eskalation, Grenze zu § 235 StGB (Entfremdung).`;
+  if (/(kindeswohl|kindeswohl-argument|wohl des kindes)/i.test(lower)) return `${rot} Direkter Rat zur Verhinderung durch ‚Kindeswohl-Argumente' – impliziert selektive Darstellung, Grenze zu § 153 StGB.`;
+  if (/(triftige gründe|abänderung|änderung.*modell)/i.test(lower)) return `${rot} Fördert Abänderung durch ‚triftige Gründe' – oft Konfliktinszenierung, verletzt Kindeswohl (§ 1666 BGB).`;
+  if (/(ausweg|streit|distanz|eskalation|konflikt.*inszenierung)/i.test(lower)) return `${rot} Explizite ‚Auswege' zur Verhinderung durch Streit und Distanz – direkte Anleitung zu Eskalation, strafbar als Beihilfe (§ 27 StGB).`;
+  if (/(indirekt|versteckt|strategie|trick)/i.test(lower)) return `${rot} Indirekte Strategie gegen das Wechselmodell erkennbar.`;
+  return `${rot} Direkte Anleitung zur Verhinderung des Wechselmodells`;
 }
 
 function kuerzeAuszug(text) {
