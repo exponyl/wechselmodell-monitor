@@ -8,13 +8,20 @@ const TAVILY_URL = 'https://api.tavily.com/search';
 async function searchSerper(query) {
   if (!process.env.SERPER_KEY) return null;
   try {
-    const response = await axios.post(SERPER_URL, { q: query }, {
-      headers: { 'X-API-KEY': process.env.SERPER_KEY },
-      timeout: 15000
-    });
+    const response = await axios.post(
+      SERPER_URL,
+      { q: query, num: 15 },
+      {
+        headers: {
+          'X-API-KEY': process.env.SERPER_KEY,
+          'Content-Type': 'application/json'
+        },
+        timeout: 18000
+      }
+    );
     return response.data.organic || [];
-  } catch (e) {
-    console.log(`Serper fehlgeschlagen für "${query}":`, e.message);
+  } catch (error) {
+    console.log(`Serper fehlgeschlagen für "${query}": ${error.message}`);
     return null;
   }
 }
@@ -22,42 +29,63 @@ async function searchSerper(query) {
 async function searchTavily(query) {
   if (!process.env.TAVILY_API_KEY) return null;
   try {
-    const response = await axios.post(TAVILY_URL, {
-      api_key: process.env.TAVILY_API_KEY,
-      query: query,
-      search_depth: "advanced",
-      include_domains: [],
-      max_results: 15
-    }, { timeout: 20000 });
+    const response = await axios.post(
+      TAVILY_URL,
+      {
+        api_key: process.env.TAVILY_API_KEY,
+        query: query,
+        search_depth: "advanced",
+        include_answer: false,
+        include_images: false,
+        include_raw_content: false,
+        max_results: 15
+      },
+      { timeout: 25000 }
+    );
 
-    return (response.data.results || []).map(r => ({
+    if (!response.data?.results) return [];
+
+    return response.data.results.map(r => ({
       title: r.title,
       link: r.url,
-      snippet: r.content
+      snippet: r.content || r.snippet || ''
     }));
-  } catch (e) {
-    console.log(`Tavily fehlgeschlagen für "${query}":`, e.message);
+  } catch (error) {
+    console.log(`Tavily fehlgeschlagen für "${query}": ${error.message}`);
     return null;
   }
 }
 
 async function fetchPageContent(url) {
-  for (let i = 0; i < 3; i++) {
+  for (let retry = 0; retry < 4; retry++) {
     try {
       const { data } = await axios.get(url, {
-        timeout: 12000,
-        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; WechselmodellMonitor/1.0)' }
+        timeout: 15000,
+        maxRedirects: 5,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36',
+          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'de-DE,de;q=0.9'
+        }
       });
+
       const $ = cheerio.load(data);
-      $('script, style, nav, footer, aside').remove();
-      const text = $('body').text().replace(/\s+/g, ' ').trim();
-      return text.slice(0, 8000);
-    } catch (e) {
-      if (e.response?.status === 403 || e.response?.status === 429) {
-        await new Promise(r => setTimeout(r, 3000 * (i + 1)));
+      // Entferne unnötige Elemente
+      $('script, style, noscript, iframe, nav, header, footer, aside, .cookie, .advert').remove();
+      let text = $('body').text()
+        .replace(/\s+/g, ' ')
+        .trim();
+
+      return text.length > 100 ? text.slice(0, 10000) : text;
+    } catch (error) {
+      const status = error.response?.status;
+      if (status === 429 || status === 403 || status >= 500) {
+        const wait = (retry + 1) * 4000;
+        console.log(`Warte ${wait/1000}s wegen ${status} bei ${url}`);
+        await new Promise(r => setTimeout(r, wait));
         continue;
       }
-      console.log(`Fehler beim Laden von ${url} – wird übersprungen`);
+      console.log(`Endgültiger Fehler beim Laden von ${url} – übersprungen`);
       return null;
     }
   }
@@ -66,11 +94,20 @@ async function fetchPageContent(url) {
 
 async function searchWithFallback(query) {
   let results = await searchSerper(query);
+
   if (!results || results.length === 0) {
-    console.log(`Fallback zu Tavily für: ${query}`);
+    console.log(`Serper leer → Fallback zu Tavily für: ${query}`);
     results = await searchTavily(query);
   }
+
+  if (!results || results.length === 0) {
+    console.log(`Beide APIs leer für: ${query}`);
+  }
+
   return results || [];
 }
 
-module.exports = { searchWithFallback, fetchPageContent };
+module.exports = {
+  searchWithFallback,
+  fetchPageContent
+};
