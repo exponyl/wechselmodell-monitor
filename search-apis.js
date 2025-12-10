@@ -4,14 +4,21 @@ import axios from 'axios';
 const SERPER_URL = 'https://google.serper.dev/search';
 const TAVILY_URL = 'https://api.tavily.com/search';
 
-// Hauptfunktion – genau so heißt sie in deinen Skripten: suche(query, maxResults)
+/**
+ * Haupt-Suchfunktion – wird von update-search.js und extra-search.js verwendet
+ * @param {string} query       Suchanfrage
+ * @param {number} maxResults  Maximale Anzahl Ergebnisse (Standard: 15)
+ * @returns {Array<{title:string, link:string, snippet:string}>}
+ */
 export async function suche(query, maxResults = 15) {
   let results = [];
 
-  // 1. Serper versuchen (sehr gut bei normalen Suchen)
+  // ------------------------------------------------------------------
+  // 1. Serper versuchen (schnell & gut für normale Google-Suchen)
+  // ------------------------------------------------------------------
   if (process.env.SERPER_KEY) {
     try {
-      const response = await axios.post(
+      const res = await axios.post(
         SERPER_URL,
         {
           q: query,
@@ -28,13 +35,13 @@ export async function suche(query, maxResults = 15) {
         }
       );
 
-      if (response.data?.organic?.length > 0) {
-        results = response.data.organic.map(item => ({
+      if (res.data?.organic?.length > 0) {
+        results = res.data.organic.map(item => ({
           title: item.title || 'Kein Titel',
           link: item.link,
-          snippet: item.snippet || item.snippet || ''
+          snippet: item.snippet || ''
         }));
-        console.log(`Serper: ${results.length} Ergebnisse für "${query.substring(0, 50)}..."`);
+        console.log(`Serper: ${results.length} Treffer für "${query.substring(0, 50)}..."`);
         return results.slice(0, maxResults);
       }
     } catch (error) {
@@ -42,10 +49,12 @@ export async function suche(query, maxResults = 15) {
     }
   }
 
-  // 2. Tavily als zuverlässiger Fallback (besonders wichtig für web.archive.org!)
+  // ------------------------------------------------------------------
+  // 2. Tavily als starker Fallback (besonders für web.archive.org & komplexe Queries)
+  // ------------------------------------------------------------------
   if (process.env.TAVILY_API_KEY) {
     try {
-      const response = await axios.post(
+      const res = await axios.post(
         TAVILY_URL,
         {
           api_key: process.env.TAVILY_API_KEY,
@@ -56,8 +65,8 @@ export async function suche(query, maxResults = 15) {
         { timeout: 30000 }
       );
 
-      if (response.data?.results?.length > 0) {
-        const tavilyResults = response.data.results.map(item => ({
+      if (res.data?.results?.length > 0) {
+        const tavilyResults = res.data.results.map(item => ({
           title: item.title || 'Kein Titel',
           link: item.url,
           snippet: item.content || item.snippet || ''
@@ -69,19 +78,19 @@ export async function suche(query, maxResults = 15) {
             results.push(item);
           }
         }
-
-        console.log(`Tavily: ${tavilyResults.length} Ergebnisse (Fallback) für "${query.substring(0, 50)}..."`);
-        
-        if (results.length >= 3) {
-          return results.slice(0, maxResults);
-        }
+        console.log(`Tavily: ${tavilyResults.length} Treffer (Fallback)`);
       }
     } catch (error) {
       console.log(`Tavily fehlgeschlagen: ${error.message}`);
     }
   }
 
-  // Falls wirklich gar nichts kommt
-  console.log(`Keine Ergebnisse von Serper oder Tavily für: ${query}`);
+  // ------------------------------------------------------------------
+  // Finales Ergebnis zurückgeben
+  // ------------------------------------------------------------------
+  if (results.length === 0) {
+    console.log(`Keine Ergebnisse von Serper oder Tavily für: ${query}`);
+  }
+
   return results.slice(0, maxResults);
 }
