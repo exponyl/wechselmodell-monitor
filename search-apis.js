@@ -1,113 +1,87 @@
 // search-apis.js
-const axios = require('axios');
-const cheerio = require('cheerio');
+import axios from 'axios';
 
 const SERPER_URL = 'https://google.serper.dev/search';
 const TAVILY_URL = 'https://api.tavily.com/search';
 
-async function searchSerper(query) {
-  if (!process.env.SERPER_KEY) return null;
-  try {
-    const response = await axios.post(
-      SERPER_URL,
-      { q: query, num: 15 },
-      {
-        headers: {
-          'X-API-KEY': process.env.SERPER_KEY,
-          'Content-Type': 'application/json'
-        },
-        timeout: 18000
-      }
-    );
-    return response.data.organic || [];
-  } catch (error) {
-    console.log(`Serper fehlgeschlagen für "${query}": ${error.message}`);
-    return null;
-  }
-}
+// Hauptfunktion – genau so heißt sie in deinen Skripten: suche(query, maxResults)
+export async function suche(query, maxResults = 15) {
+  let results = [];
 
-async function searchTavily(query) {
-  if (!process.env.TAVILY_API_KEY) return null;
-  try {
-    const response = await axios.post(
-      TAVILY_URL,
-      {
-        api_key: process.env.TAVILY_API_KEY,
-        query: query,
-        search_depth: "advanced",
-        include_answer: false,
-        include_images: false,
-        include_raw_content: false,
-        max_results: 15
-      },
-      { timeout: 25000 }
-    );
-
-    if (!response.data?.results) return [];
-
-    return response.data.results.map(r => ({
-      title: r.title,
-      link: r.url,
-      snippet: r.content || r.snippet || ''
-    }));
-  } catch (error) {
-    console.log(`Tavily fehlgeschlagen für "${query}": ${error.message}`);
-    return null;
-  }
-}
-
-async function fetchPageContent(url) {
-  for (let retry = 0; retry < 4; retry++) {
+  // 1. Serper versuchen (sehr gut bei normalen Suchen)
+  if (process.env.SERPER_KEY) {
     try {
-      const { data } = await axios.get(url, {
-        timeout: 15000,
-        maxRedirects: 5,
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0 Safari/537.36',
-          'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-          'Accept-Language': 'de-DE,de;q=0.9'
+      const response = await axios.post(
+        SERPER_URL,
+        {
+          q: query,
+          num: maxResults,
+          gl: 'de',
+          hl: 'de'
+        },
+        {
+          headers: {
+            'X-API-KEY': process.env.SERPER_KEY,
+            'Content-Type': 'application/json'
+          },
+          timeout: 20000
         }
-      });
+      );
 
-      const $ = cheerio.load(data);
-      // Entferne unnötige Elemente
-      $('script, style, noscript, iframe, nav, header, footer, aside, .cookie, .advert').remove();
-      let text = $('body').text()
-        .replace(/\s+/g, ' ')
-        .trim();
-
-      return text.length > 100 ? text.slice(0, 10000) : text;
-    } catch (error) {
-      const status = error.response?.status;
-      if (status === 429 || status === 403 || status >= 500) {
-        const wait = (retry + 1) * 4000;
-        console.log(`Warte ${wait/1000}s wegen ${status} bei ${url}`);
-        await new Promise(r => setTimeout(r, wait));
-        continue;
+      if (response.data?.organic?.length > 0) {
+        results = response.data.organic.map(item => ({
+          title: item.title || 'Kein Titel',
+          link: item.link,
+          snippet: item.snippet || item.snippet || ''
+        }));
+        console.log(`Serper: ${results.length} Ergebnisse für "${query.substring(0, 50)}..."`);
+        return results.slice(0, maxResults);
       }
-      console.log(`Endgültiger Fehler beim Laden von ${url} – übersprungen`);
-      return null;
+    } catch (error) {
+      console.log(`Serper fehlgeschlagen: ${error.message}`);
     }
   }
-  return null;
-}
 
-async function searchWithFallback(query) {
-  let results = await searchSerper(query);
+  // 2. Tavily als zuverlässiger Fallback (besonders wichtig für web.archive.org!)
+  if (process.env.TAVILY_API_KEY) {
+    try {
+      const response = await axios.post(
+        TAVILY_URL,
+        {
+          api_key: process.env.TAVILY_API_KEY,
+          query: query,
+          search_depth: 'advanced',
+          max_results: maxResults
+        },
+        { timeout: 30000 }
+      );
 
-  if (!results || results.length === 0) {
-    console.log(`Serper leer → Fallback zu Tavily für: ${query}`);
-    results = await searchTavily(query);
+      if (response.data?.results?.length > 0) {
+        const tavilyResults = response.data.results.map(item => ({
+          title: item.title || 'Kein Titel',
+          link: item.url,
+          snippet: item.content || item.snippet || ''
+        }));
+
+        // Duplikate vermeiden
+        for (const item of tavilyResults) {
+          if (!results.some(r => r.link === item.link)) {
+            results.push(item);
+          }
+        }
+
+        console.log(`Tavily: ${tavilyResults.length} Ergebnisse (Fallback) für "${query.substring(0, 50)}..."`);
+        
+        if (results.length >= 3) {
+          return results.slice(0, maxResults);
+        }
+      }
+    } catch (error) {
+      console.log(`Tavily fehlgeschlagen: ${error.message}`);
+    }
   }
 
-  if (!results || results.length === 0) {
-    console.log(`Beide APIs leer für: ${query}`);
-  }
-
-  return results || [];
+  // Falls wirklich gar nichts kommt
+  console.log(`Keine Ergebnisse von Serper oder Tavily für: ${query}`);
+  return results.slice(0, maxResults);
 }
-
-module.exports = {
-  searchWithFallback,
-  fetchPageContent
-};
