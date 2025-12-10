@@ -1,80 +1,76 @@
-// search-apis.js – Zentrale Such-Engine mit 2 Free-Tiers + DDG Notfall
-// Reihenfolge: Serper → NewsAPI → DuckDuckGo (keyless)
+// search-apis.js
+const axios = require('axios');
+const cheerio = require('cheerio');
 
-import axios from 'axios';
+const SERPER_URL = 'https://google.serper.dev/search';
+const TAVILY_URL = 'https://api.tavily.com/search';
 
-const PRIORITY = (process.env.SEARCH_API || 'serper').toLowerCase();
-
-export async function suche(query, num = 12) {
-  const q = query.trim();
-
-  // 1. Serper.dev – dein Haupt-Key (2.500 Anfragen/Monat kostenlos)
-  if ((PRIORITY === 'serper' || PRIORITY === 'auto') && process.env.SERPER_KEY) {
-    try {
-      const res = await axios.post(
-        'https://google.serper.dev/search',
-        { q: q + ' lang:de -filetype:pdf', gl: 'de', hl: 'de', num },
-        { headers: { 'X-API-KEY': process.env.SERPER_KEY, 'Content-Type': 'application/json' }, timeout: 14000 }
-      );
-      const results = res.data.organic?.map(r => ({
-        title: r.title || 'Kein Titel',
-        link: r.link,
-        snippet: r.snippet || ''
-      })) || [];
-      if (results.length) {
-        console.log(`Serper.dev: ${results.length} Ergebnisse`);
-        return results;
-      }
-    } catch (e) {
-      console.log('Serper fehlgeschlagen:', e.response?.data?.error || e.message);
-    }
-  }
-
-  // 2. NewsAPI.org – Medien, Urteile, Skandale (100 Anfragen/Tag kostenlos)
-  if ((PRIORITY === 'newsapi' || PRIORITY === 'auto') && process.env.NEWSAPI_KEY) {
-    try {
-      const res = await axios.get('https://newsapi.org/v2/everything', {
-        params: { q, language: 'de', sortBy: 'relevancy', pageSize: num },
-        headers: { 'X-Api-Key': process.env.NEWSAPI_KEY },
-        timeout: 12000
-      });
-      const results = res.data.articles?.map(a => ({
-        title: a.title || 'Kein Titel',
-        link: a.url,
-        snippet: a.description || a.content?.substring(0, 300) || ''
-      })) || [];
-      if (results.length) {
-        console.log(`NewsAPI.org: ${results.length} Ergebnisse`);
-        return results;
-      }
-    } catch (e) {
-      console.log('NewsAPI fehlgeschlagen:', e.response?.data?.message || e.message);
-    }
-  }
-
-  // 3. DuckDuckGo Instant Answer – keyless & unbegrenzt (Notfall)
+async function searchSerper(query) {
+  if (!process.env.SERPER_KEY) return null;
   try {
-    const res = await axios.get('https://api.duckduckgo.com/', {
-      params: { q, format: 'json', no_html: 1, skip_disambig: 1, locale: 'de_de' },
-      timeout: 10000
+    const response = await axios.post(SERPER_URL, { q: query }, {
+      headers: { 'X-API-KEY': process.env.SERPER_KEY },
+      timeout: 15000
     });
-    const results = [];
-    if (res.data.AbstractText) {
-      results.push({ title: res.data.Heading || 'DuckDuckGo', link: res.data.AbstractURL || '#', snippet: res.data.AbstractText });
-    }
-    res.data.RelatedTopics?.slice(0, num).forEach(t => {
-      if (t.FirstURL) {
-        results.push({ title: t.Text || 'Related', link: t.FirstURL, snippet: t.Text || '' });
-      }
-    });
-    if (results.length) {
-      console.log(`DuckDuckGo (keyless): ${results.length} Ergebnisse`);
-      return results;
-    }
+    return response.data.organic || [];
   } catch (e) {
-    console.log('DuckDuckGo fehlgeschlagen:', e.message);
+    console.log(`Serper fehlgeschlagen für "${query}":`, e.message);
+    return null;
   }
-
-  console.log('ALLE Such-APIs fehlgeschlagen für:', q);
-  return [];
 }
+
+async function searchTavily(query) {
+  if (!process.env.TAVILY_API_KEY) return null;
+  try {
+    const response = await axios.post(TAVILY_URL, {
+      api_key: process.env.TAVILY_API_KEY,
+      query: query,
+      search_depth: "advanced",
+      include_domains: [],
+      max_results: 15
+    }, { timeout: 20000 });
+
+    return (response.data.results || []).map(r => ({
+      title: r.title,
+      link: r.url,
+      snippet: r.content
+    }));
+  } catch (e) {
+    console.log(`Tavily fehlgeschlagen für "${query}":`, e.message);
+    return null;
+  }
+}
+
+async function fetchPageContent(url) {
+  for (let i = 0; i < 3; i++) {
+    try {
+      const { data } = await axios.get(url, {
+        timeout: 12000,
+        headers: { 'User-Agent': 'Mozilla/5.0 (compatible; WechselmodellMonitor/1.0)' }
+      });
+      const $ = cheerio.load(data);
+      $('script, style, nav, footer, aside').remove();
+      const text = $('body').text().replace(/\s+/g, ' ').trim();
+      return text.slice(0, 8000);
+    } catch (e) {
+      if (e.response?.status === 403 || e.response?.status === 429) {
+        await new Promise(r => setTimeout(r, 3000 * (i + 1)));
+        continue;
+      }
+      console.log(`Fehler beim Laden von ${url} – wird übersprungen`);
+      return null;
+    }
+  }
+  return null;
+}
+
+async function searchWithFallback(query) {
+  let results = await searchSerper(query);
+  if (!results || results.length === 0) {
+    console.log(`Fallback zu Tavily für: ${query}`);
+    results = await searchTavily(query);
+  }
+  return results || [];
+}
+
+module.exports = { searchWithFallback, fetchPageContent };
