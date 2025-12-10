@@ -1,4 +1,3 @@
-// update-search.js
 import fs from 'fs';
 import axios from 'axios';
 import { JSDOM } from 'jsdom';
@@ -42,7 +41,7 @@ async function holeInhalt(url) {
       const { data } = await axios.get(url, {
         timeout: 20000,
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36'
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0.0.0 Safari/537.36 Edg/129.0.0.0'
         }
       });
       const dom = new JSDOM(data, { url });
@@ -50,38 +49,33 @@ async function holeInhalt(url) {
       const bodyText = dom.window.document.body.textContent.replace(/\s+/g, ' ').trim();
       return { title, text: bodyText };
     } catch (err) {
-      if ([429, 403].includes(err.response?.status)) {
-        await new Promise(r => setTimeout(r, 5000 * (i + 1)));
-      } else {
-        console.log("Fehler beim Laden von", url, "– wird übersprungen");
-        return null;
+      if (err.response?.status === 403 || err.response?.status === 429) {
+        await new Promise(r => setTimeout(r, 3000 * (i + 1)));
+        continue;
       }
+      console.log("Fehler beim Laden von", url, "– wird übersprungen");
+      return null;
     }
   }
   return null;
 }
 
-// ABSTURZSICHERE VERSION – funktioniert immer, auch wenn <head> fehlt
 function addNoCacheHeaders(dom) {
   const { document } = dom.window;
   let head = document.querySelector('head');
+  
+  // Falls <head> fehlt, erstelle es
   if (!head) {
     head = document.createElement('head');
     document.documentElement.insertBefore(head, document.body);
   }
 
-  const headers = [
-    { name: 'Cache-Control', content: 'no-cache, no-store, must-revalidate, max-age=0' },
-    { name: 'Pragma', content: 'no-cache' },
-    { name: 'Expires', content: '0' }
-  ];
-
-  headers.forEach(({ name, content }) => {
-    const existing = head.querySelector(`meta[http-equiv="${name}" i]`);
-    if (existing) && existing.remove();
-    const meta = document.createElement('meta');
-    meta.httpEquiv = name;
-    meta.content = content;
+  ['Cache-Control', 'Pragma', 'Expires'].forEach((h, i) => {
+    let meta = head.querySelector(`meta[http-equiv="${h}" i]`);
+    if (meta) meta.remove();
+    meta = document.createElement('meta');
+    meta.httpEquiv = h;
+    meta.content = i === 0 ? 'no-cache, no-store, must-revalidate, max-age=0' : i === 1 ? 'no-cache' : '0';
     head.appendChild(meta);
   });
 }
@@ -106,7 +100,6 @@ async function main() {
   for (const begriff of SUCHBEGRIFFE) {
     console.log(`Suche nach: ${begriff}`);
     const ergebnisse = await suche(begriff, 18);
-
     for (const item of ergebnisse) {
       const url = item.link?.trim();
       if (!url || bekannteUrls.includes(url) || url.includes('wikipedia.org')) continue;
@@ -159,12 +152,33 @@ async function main() {
       nav.style.fontSize = '1.1em';
       nav.style.margin = '40px 0';
 
-      if (s > 1) { const a = dom2.window.document.createElement('a'); a.href = 'index.html'; a.textContent = 'Seite 1'; nav.appendChild(a); nav.appendChild(dom2.window.document.createTextNode(' | ')); }
-      if (s > 2) { const a = dom2.window.document.createElement('a'); a.href = `quellen-seite-${s-1}.html`; a.textContent = `Seite ${s-1}`; nav.appendChild(a); nav.appendChild(dom2.window.document.createTextNode(' | ')); }
-      const span = dom2.window.document.createElement('span'); span.textContent = `Seite ${s}`; nav.appendChild(span);
-      if (s < seite) { nav.appendChild(dom2.window.document.createTextNode(' | ')); const a = dom2.window.document.createElement('a'); a.href = `quellen-seite-${s+1}.html`; a.textContent = `Seite ${s+1}`; nav.appendChild(a); }
+      if (s > 1) { 
+        const a = dom2.window.document.createElement('a'); 
+        a.href = 'index.html'; 
+        a.textContent = 'Seite 1'; 
+        nav.appendChild(a); 
+        nav.appendChild(dom2.window.document.createTextNode(' | ')); 
+      }
+      if (s > 2) { 
+        const a = dom2.window.document.createElement('a'); 
+        a.href = `quellen-seite-${s-1}.html`; 
+        a.textContent = `Seite ${s-1}`; 
+        nav.appendChild(a); 
+        nav.appendChild(dom2.window.document.createTextNode(' | ')); 
+      }
+      const span = dom2.window.document.createElement('span'); 
+      span.textContent = `Seite ${s}`; 
+      nav.appendChild(span);
+      if (s < seite) { 
+        nav.appendChild(dom2.window.document.createTextNode(' | ')); 
+        const a = dom2.window.document.createElement('a'); 
+        a.href = `quellen-seite-${s+1}.html`; 
+        a.textContent = `Seite ${s+1}`; 
+        nav.appendChild(a); 
+      }
 
       dom2.window.document.querySelector('.additional-sources').appendChild(nav);
+
       addNoCacheHeaders(dom2);
 
       const jetzt = new Date();
