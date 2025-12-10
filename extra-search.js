@@ -7,25 +7,29 @@ const INDEX_FILE = 'index.html';
 const MAX_PER_PAGE = 100;
 
 const ZUSATZSUCHEN = [
-  '"wechselmodell verhindern" OR "wechselmodell sabotieren" OR "doppelresidenz verhindern" site:web.archive.org',
-  '"kindeswille vorbereiten" OR "kindeswille manipulieren" OR "kind aufhetzen" site:web.archive.org',
-  '"gutachter täuschen" OR "gutachter beeinflussen" OR "gutachter manipulieren" site:web.archive.org',
-  '"umgang boykott" OR "umgang sabotieren" OR "kontaktabbruch tipps" site:web.archive.org',
+  // Wayback Machine (Foren, alte Blogs etc.)
+  '"wechselmodell verhindern" OR "wechselmodell sabotieren" OR "doppelresidenz verhindern" OR "wechselmodell boykott" site:web.archive.org',
+  '"kindeswille vorbereiten" OR "kindeswille manipulieren" OR "kind aufhetzen" OR "kind gegen vater aufhetzen" site:web.archive.org',
+  '"gutachter täuschen" OR "gutachter manipulieren" OR "gutachten beeinflussen" OR "gutachter vorbereiten" site:web.archive.org',
+  '"umgang boykottieren" OR "umgang sabotieren" OR "kontaktabbruch vater" OR "umgangsvereitlung tipps" site:web.archive.org',
 
-  '"wechselmodell" OR "doppelresidenz" OR "prozessbetrug" OR "falschaussage" site:openjur.de',
-  '"anwältin verurteilt" OR "kindesentzug anwalt" OR "falschvorwürfe" site:juris.de',
+  // Rechtsdatenbanken
+  '"wechselmodell" OR "doppelresidenz" OR "paritätisches wechselmodell" OR "echtes wechselmodell" site:openjur.de',
+  '"wechselmodell" OR "umgangsausschluss" OR "umgangsvereitlung" OR "elternentfremdung" OR "kindeswille manipulation" site:openjur.de',
+  '"prozessbetrug" OR "falschaussage" OR "falsche beschuldigung" AND ("familienrecht" OR "sorgerecht" OR "umgangsrecht") site:openjur.de OR site:juris.de',
 
-  '"wechselmodell" OR "elternteil täuschen" OR "falschvorwürfe" OR "skandal" site:spiegel.de',
-  '"wechselmodell" OR "anwältin" OR "prozessbetrug" OR "kindesentzug" site:sueddeutsche.de',
-  '"wechselmodell" OR "elternentfremdung" OR "falschaussage" site:faz.net',
-  '"wechselmodell" OR "vater diskriminierung" OR "anwalt skandal" site:welt.de',
+  // Große Medien (nur mit klarem Familienrechts-Bezug)
+  '"wechselmodell" OR "doppelresidenz" AND ("gericht" OR "olG" OR "bundesgerichtshof" OR "verfassungsbeschwerde") site:spiegel.de OR site:sueddeutsche.de OR site:faz.net OR site:welt.de',
+  '"elternentfremdung" OR "umgangsvereitlung" OR "kindeswohlgefährdung vorwurf" OR "vaterdiskriminierung" site:spiegel.de OR site:sueddeutsche.de OR site:faz.net OR site:welt.de',
 
-  '"gutachter täuschen" OR "gutachter beeinflussen" OR "gutachter manipulieren" familienrecht',
-  '"kindeswille vorbereiten" OR "kindeswille manipulieren" OR "kind gegen vater aufhetzen"',
-  '"kind aufhetzen" OR "kind gegen elternteil" OR "elternentfremdung tipps"',
-  '"umgangsboykott tipps" OR "umgang sabotieren" OR "vater kind kontakt verhindern"',
-  '"falschvorwürfe erfinden" OR "prozessbetrug scheidung" OR "lügen vor gericht"',
-  '"kommunikation verweigern wechselmodell" OR "nachrichten blockieren sorgerecht" OR "appartementmethode"'
+  // Allgemeine Google-Suchen – stark eingeschränkt und familienrechtlich präzisiert
+  '"wechselmodell verhindern" OR "doppelresidenz ablehnen" familienrecht OR sorgerecht OR umgangsrecht',
+  '"kindeswille manipulieren" OR "kind gegen vater aufhetzen" OR "kindeswille vorbereiten" familienrecht',
+  '"gutachter täuschen" OR "psychologisches gutachten manipulieren" OR "gutachter beeinflussen" familienrecht OR wechselmodell',
+  '"umgang boykottieren" OR "umgangsvereitlung strafbar" OR "kontaktabbruch vater" familienrecht OR sorgerecht',
+  '"elternentfremdung tipps" OR "kind entfremden" OR "vater kind beziehung zerstören" -forum -reddit',
+  '"falschvorwürfe familienrecht" OR "falsche gewaltvorwürfe scheidung" OR "prozessbetrug sorgerecht"',
+  '"kommunikation verweigern sorgerecht" OR "nachrichten blockieren wechselmodell" OR "appartementmethode" familienrecht'
 ];
 
 function bestimmeKritischGrund(text = '') {
