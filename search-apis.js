@@ -1,7 +1,7 @@
 // search-apis.js
 import axios from 'axios';
 
-const SERPER_URL = 'https://google.serper.dev/search';
+const DDG_URL = 'https://api.duckduckgo.com/';
 const TAVILY_URL = 'https://api.tavily.com/search';
 
 /**
@@ -14,39 +14,32 @@ export async function suche(query, maxResults = 15) {
   let results = [];
 
   // ------------------------------------------------------------------
-  // 1. Serper versuchen (schnell & gut für normale Google-Suchen)
+  // 1. DuckDuckGo versuchen (kostenlos, kein Key, gut für Instant Answers und Related Topics)
   // ------------------------------------------------------------------
-  if (process.env.SERPER_KEY) {
-    try {
-      const res = await axios.post(
-        SERPER_URL,
-        {
-          q: query,
-          num: maxResults,
-          gl: 'de',
-          hl: 'de'
-        },
-        {
-          headers: {
-            'X-API-KEY': process.env.SERPER_KEY,
-            'Content-Type': 'application/json'
-          },
-          timeout: 20000
+  try {
+    const res = await axios.get(
+      `${DDG_URL}?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`,
+      {
+        timeout: 20000,
+        params: {
+          kl: 'de-de'  // Für deutsche Ergebnisse
         }
-      );
-
-      if (res.data?.organic?.length > 0) {
-        results = res.data.organic.map(item => ({
-          title: item.title || 'Kein Titel',
-          link: item.link,
-          snippet: item.snippet || ''
-        }));
-        console.log(`Serper: ${results.length} Treffer für "${query.substring(0, 50)}..."`);
-        return results.slice(0, maxResults);
       }
-    } catch (error) {
-      console.log(`Serper fehlgeschlagen: ${error.message}`);
+    );
+
+    if (res.data?.RelatedTopics?.length > 0) {
+      results = res.data.RelatedTopics
+        .filter(item => item.FirstURL)  // Nur Einträge mit Links
+        .map(item => ({
+          title: item.Text?.split(' - ')[0] || 'Kein Titel',  // Titel extrahieren
+          link: item.FirstURL,
+          snippet: item.Text || ''
+        }));
+      console.log(`DuckDuckGo: ${results.length} Treffer für "${query.substring(0, 50)}..."`);
+      return results.slice(0, maxResults);
     }
+  } catch (error) {
+    console.log(`DuckDuckGo fehlgeschlagen: ${error.message}`);
   }
 
   // ------------------------------------------------------------------
@@ -89,7 +82,7 @@ export async function suche(query, maxResults = 15) {
   // Finales Ergebnis zurückgeben
   // ------------------------------------------------------------------
   if (results.length === 0) {
-    console.log(`Keine Ergebnisse von Serper oder Tavily für: ${query}`);
+    console.log(`Keine Ergebnisse von DuckDuckGo oder Tavily für: ${query}`);
   }
 
   return results.slice(0, maxResults);
