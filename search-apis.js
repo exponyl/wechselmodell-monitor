@@ -1,53 +1,60 @@
 // search-apis.js
 import axios from 'axios';
 
-const DDG_URL = 'https://api.duckduckgo.com/';
+const SERPER_URL = 'https://google.serper.dev/search';
 const TAVILY_URL = 'https://api.tavily.com/search';
 
-/**
- * Haupt-Suchfunktion – wird von update-search.js und extra-search.js verwendet
- * @param {string} query       Suchanfrage
- * @param {number} maxResults  Maximale Anzahl Ergebnisse (Standard: 15)
- * @returns {Array<{title:string, link:string, snippet:string}>}
- */
+// Hauptfunktion – genau so heißt sie in deinen Skripten: suche(query, maxResults)
+
+
+
+
+
 export async function suche(query, maxResults = 15) {
   let results = [];
 
-  // ------------------------------------------------------------------
-  // 1. DuckDuckGo versuchen (kostenlos, kein Key, gut für Instant Answers und Related Topics)
-  // ------------------------------------------------------------------
-  try {
-    const res = await axios.get(
-      `${DDG_URL}?q=${encodeURIComponent(query)}&format=json&no_redirect=1&no_html=1`,
-      {
-        timeout: 20000,
-        params: {
-          kl: 'de-de'  // Für deutsche Ergebnisse
-        }
-      }
-    );
+  // 1. Serper versuchen (sehr gut bei normalen Suchen)
 
-    if (res.data?.RelatedTopics?.length > 0) {
-      results = res.data.RelatedTopics
-        .filter(item => item.FirstURL)  // Nur Einträge mit Links
-        .map(item => ({
-          title: item.Text?.split(' - ')[0] || 'Kein Titel',  // Titel extrahieren
-          link: item.FirstURL,
-          snippet: item.Text || ''
+
+  if (process.env.SERPER_KEY) {
+    try {
+      const response = await axios.post(
+        SERPER_URL,
+        {
+          q: query,
+          num: maxResults,
+          gl: 'de',
+          hl: 'de'
+        },
+        {
+          headers: {
+            'X-API-KEY': process.env.SERPER_KEY,
+            'Content-Type': 'application/json'
+          },
+          timeout: 20000
+        }
+      );
+
+      if (response.data?.organic?.length > 0) {
+        results = response.data.organic.map(item => ({
+          title: item.title || 'Kein Titel',
+          link: item.link,
+          snippet: item.snippet || item.snippet || ''
         }));
-      console.log(`DuckDuckGo: ${results.length} Treffer für "${query.substring(0, 50)}..."`);
-      return results.slice(0, maxResults);
+        console.log(`Serper: ${results.length} Ergebnisse für "${query.substring(0, 50)}..."`);
+        return results.slice(0, maxResults);
+      }
+    } catch (error) {
+      console.log(`Serper fehlgeschlagen: ${error.message}`);
     }
-  } catch (error) {
-    console.log(`DuckDuckGo fehlgeschlagen: ${error.message}`);
   }
 
-  // ------------------------------------------------------------------
-  // 2. Tavily als starker Fallback (besonders für web.archive.org & komplexe Queries)
-  // ------------------------------------------------------------------
+  // 2. Tavily als zuverlässiger Fallback (besonders wichtig für web.archive.org!)
+
+
   if (process.env.TAVILY_API_KEY) {
     try {
-      const res = await axios.post(
+      const response = await axios.post(
         TAVILY_URL,
         {
           api_key: process.env.TAVILY_API_KEY,
@@ -58,8 +65,8 @@ export async function suche(query, maxResults = 15) {
         { timeout: 30000 }
       );
 
-      if (res.data?.results?.length > 0) {
-        const tavilyResults = res.data.results.map(item => ({
+      if (response.data?.results?.length > 0) {
+        const tavilyResults = response.data.results.map(item => ({
           title: item.title || 'Kein Titel',
           link: item.url,
           snippet: item.content || item.snippet || ''
@@ -71,19 +78,24 @@ export async function suche(query, maxResults = 15) {
             results.push(item);
           }
         }
-        console.log(`Tavily: ${tavilyResults.length} Treffer (Fallback)`);
+
+        console.log(`Tavily: ${tavilyResults.length} Ergebnisse (Fallback) für "${query.substring(0, 50)}..."`);
+        
+        if (results.length >= 3) {
+          return results.slice(0, maxResults);
+        }
       }
     } catch (error) {
       console.log(`Tavily fehlgeschlagen: ${error.message}`);
     }
   }
 
-  // ------------------------------------------------------------------
-  // Finales Ergebnis zurückgeben
-  // ------------------------------------------------------------------
-  if (results.length === 0) {
-    console.log(`Keine Ergebnisse von DuckDuckGo oder Tavily für: ${query}`);
-  }
+  // Falls wirklich gar nichts kommt
+  console.log(`Keine Ergebnisse von Serper oder Tavily für: ${query}`);
+
+
+
+
 
   return results.slice(0, maxResults);
 }
